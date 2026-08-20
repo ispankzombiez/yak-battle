@@ -1,14 +1,30 @@
-// ── PeerJS + Firebase Realtime Database networking ───────────────────────────
+// ── PeerJS + Firebase Realtime Database networking ─────────────────────────────────
 //
-// Firebase path: /yak-battle/rooms/{roomCode}
-// Firebase rules needed (set in your Firebase console):
-//   "yak-battle": { ".read": true, ".write": true }
+// Security model:
+//   • Anonymous auth required by Firebase rules  (”.read/.write”: ”auth != null”)
+//   • API key restricted to ispankzombiez.github.io in Google Cloud Console
+//   • Data structure validated by Firebase rules
 //
-// Room codes: 6-char alphanumeric, PeerJS peer ID = "yak-" + code.toLowerCase()
-// e.g. display code "A3B4C5" → peer ID "yak-a3b4c5"
+// Room codes: 6-char alphanumeric, PeerJS peer ID = ”yak-” + code.toLowerCase()
 
-const FIREBASE_BASE = 'https://sfl-calculator-default-rtdb.firebaseio.com/yak-battle/rooms';
-const ROOM_TTL_MS   = 10 * 60 * 1000; // hide rooms older than 10 minutes
+const ROOMS_PATH  = 'yak-battle/rooms';
+const ROOM_TTL_MS = 10 * 60 * 1000;
+
+// ── Firebase SDK (lazy singleton, anonymous auth) ────────────────────────────
+let _db = null;
+
+async function _initFirebase() {
+  if (_db) return;
+  if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+  const auth = firebase.auth();
+  if (!auth.currentUser) await auth.signInAnonymously();
+  _db = firebase.database();
+}
+
+async function _fbGet(path)         { await _initFirebase(); return (await _db.ref(path).once('value')).val(); }
+async function _fbSet(path, data)    { await _initFirebase(); await _db.ref(path).set(data); }
+async function _fbUpdate(path, data) { await _initFirebase(); await _db.ref(path).update(data); }
+async function _fbRemove(path)       { await _initFirebase(); await _db.ref(path).remove(); }
 
 let _peer           = null;
 let _conn           = null;
@@ -67,7 +83,7 @@ async function netHost(playerName, isPublic) {
 
         if (isPublic) {
           try {
-            await _firebasePut(`${FIREBASE_BASE}/${peerId}.json`, {
+            await _fbSet(`${ROOMS_PATH}/${peerId}`, {
               hostName:  playerName,
               peerId,
               code,
@@ -126,7 +142,7 @@ function netSend(data) {
 /** Close connection and destroy peer. Removes public room if we hosted one. */
 async function netDisconnect() {
   if (_myRoomCode) {
-    try { await _firebaseDelete(`${FIREBASE_BASE}/${codeToPeerId(_myRoomCode)}.json`); } catch { /* ok */ }
+    try { await _fbRemove(`${ROOMS_PATH}/${codeToPeerId(_myRoomCode)}`); } catch { /* ok */ }
     _myRoomCode = null;
   }
   if (_conn)  { _conn.close();    _conn  = null; }
@@ -137,14 +153,14 @@ async function netDisconnect() {
 async function netCloseRoom() {
   if (!_myRoomCode) return;
   try {
-    await _firebasePut(`${FIREBASE_BASE}/${codeToPeerId(_myRoomCode)}/status.json`, 'full');
+    await _fbUpdate(`${ROOMS_PATH}/${codeToPeerId(_myRoomCode)}`, { status: 'full' });
   } catch { /* ok */ }
 }
 
 /** Fetch public waiting rooms from Firebase. Returns array of room objects. */
 async function netGetPublicRooms() {
   try {
-    const data = await _firebaseGet(`${FIREBASE_BASE}.json`);
+    const data = await _fbGet(ROOMS_PATH);
     if (!data) return [];
     const now = Date.now();
     return Object.values(data).filter(
@@ -153,25 +169,4 @@ async function netGetPublicRooms() {
   } catch {
     return [];
   }
-}
-
-// ── Firebase REST helpers ─────────────────────────────────────────────────────
-
-async function _firebaseGet(url) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Firebase GET failed: ${res.status}`);
-  return res.json();
-}
-
-async function _firebasePut(url, body) {
-  const res = await fetch(url, {
-    method:  'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify(body),
-  });
-  if (!res.ok) throw new Error(`Firebase PUT failed: ${res.status}`);
-}
-
-async function _firebaseDelete(url) {
-  await fetch(url, { method: 'DELETE' });
 }
