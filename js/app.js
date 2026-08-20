@@ -1,5 +1,8 @@
 ﻿// ── Yak Battle — main application controller ──────────────────────────────────
 
+// Timeout handles for the current battle's event/render chain; cancelled on new battle start.
+let _pendingBattleTimeouts = [];
+
 // ── App state ─────────────────────────────────────────────────────────────────
 const S = {
   playerName:    'Trainer',
@@ -39,6 +42,30 @@ function esc(str) {
 
 function playerName() {
   return document.getElementById('player-name').value.trim() || 'Trainer';
+}
+
+// ── Team persistence (localStorage) ──────────────────────────────────────────
+
+const TEAM_STORAGE_KEY = 'yak-battle-saved-team';
+
+function _saveTeam() {
+  try { localStorage.setItem(TEAM_STORAGE_KEY, JSON.stringify(S._mySelectedTeam)); } catch { /* private mode / quota */ }
+}
+
+function _loadSavedTeam() {
+  try {
+    const raw = localStorage.getItem(TEAM_STORAGE_KEY);
+    if (!raw) return [];
+    const team = JSON.parse(raw);
+    if (!Array.isArray(team)) return [];
+    return team.filter(entry => {
+      if (!entry?.id || !Array.isArray(entry.moves) || entry.moves.length !== 4) return false;
+      if (!CREATURES.find(c => c.id === entry.id)) return false;
+      if (!entry.moves.every(m => MOVE_POOL[m])) return false;
+      if (entry.ability && !ABILITIES[entry.ability]) return false;
+      return true;
+    }).slice(0, 3);
+  } catch { return []; }
 }
 
 // ── Network handlers ──────────────────────────────────────────────────────────
@@ -222,17 +249,17 @@ async function loadPublicRooms() {
 function enterCreatureSelect() {
   S.myConfirmed       = false;
   S.oppConfirmed      = false;
-  S._mySelectedTeam   = [];
+  S._mySelectedTeam   = _loadSavedTeam();
   S._pendingPreviewId = null;
   S._pendingVariant   = null;
   S._pendingAbility   = null;
   S._pendingMoves     = [];
   showScreen('select');
   document.getElementById('opp-select-status').textContent = 'Opponent is selecting…';
-  document.getElementById('btn-confirm-select').disabled = true;
-  document.getElementById('btn-confirm-select').textContent = 'CONFIRM (0/3)';
   document.getElementById('select-preview').classList.add('hidden');
   _renderTeamSlots();
+  _updateConfirmBtn();
+  _refreshCardBadges();
 
   const grid = document.getElementById('creature-grid');
   grid.innerHTML = '';
@@ -284,6 +311,7 @@ function _addToTeam() {
   const ability = S._pendingAbility ?? (_c?.abilities?.[0] ?? null);
   if (_c?.movesPool?.length && S._pendingMoves.length !== 4) return;
   S._mySelectedTeam.push({ id: S._pendingPreviewId, variant: S._pendingVariant, ability, moves: [...S._pendingMoves] });
+  _saveTeam();
   _renderTeamSlots();
   _updateConfirmBtn();
   _refreshCardBadges();
@@ -291,6 +319,7 @@ function _addToTeam() {
 
 function _removeFromTeam(slotIdx) {
   S._mySelectedTeam.splice(slotIdx, 1);
+  _saveTeam();
   _renderTeamSlots();
   _updateConfirmBtn();
   _refreshCardBadges();
@@ -401,7 +430,7 @@ function _selectCard(id) {
       const countEl = document.getElementById('mpc-count');
       if (countEl) countEl.textContent = S._pendingMoves.length + '/4';
       const teamIdx2 = S._mySelectedTeam.findIndex(x => x.id === id);
-      if (teamIdx2 >= 0) S._mySelectedTeam[teamIdx2].moves = [...S._pendingMoves];
+      if (teamIdx2 >= 0) { S._mySelectedTeam[teamIdx2].moves = [...S._pendingMoves]; _saveTeam(); }
       const needMoves2 = !!(c.movesPool?.length);
       addBtn.disabled = !onTeam && (teamFull || (needMoves2 && S._pendingMoves.length !== 4));
       _updateConfirmBtn();
@@ -416,7 +445,7 @@ function _selectCard(id) {
       preview.querySelectorAll('.ability-choice-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       const teamIdx = S._mySelectedTeam.findIndex(x => x.id === id);
-      if (teamIdx >= 0) S._mySelectedTeam[teamIdx].ability = ab;
+      if (teamIdx >= 0) { S._mySelectedTeam[teamIdx].ability = ab; _saveTeam(); }
     });
   });
 
@@ -429,6 +458,7 @@ function _selectCard(id) {
       const teamIdx = S._mySelectedTeam.findIndex(x => x.id === id);
       if (teamIdx >= 0) {
         S._mySelectedTeam[teamIdx].variant = S._pendingVariant;
+        _saveTeam();
         _renderTeamSlots();
       }
     });
@@ -487,6 +517,11 @@ netSetHandlers({
 // ── Battle screen ─────────────────────────────────────────────────────────────
 
 function startBattle(msg) {
+  // Cancel any leftover event callbacks from a previous battle
+  _pendingBattleTimeouts.forEach(clearTimeout);
+  _pendingBattleTimeouts = [];
+  document.getElementById('battle-waiting').classList.add('hidden');
+
   const myTeamData  = S.isHost ? msg.hostTeam  : msg.guestTeam;
   const oppTeamData = S.isHost ? msg.guestTeam : msg.hostTeam;
 
@@ -628,18 +663,18 @@ function _applyResult(result) {
 
   let delay = 0;
   result.events.forEach(ev => {
-    setTimeout(() => _showEvent(ev), delay);
+    _pendingBattleTimeouts.push(setTimeout(() => _showEvent(ev), delay));
     delay += 600;
   });
 
-  setTimeout(() => {
+  _pendingBattleTimeouts.push(setTimeout(() => {
     _renderActiveCreatures();
     _renderTeamIndicators();
 
     const goEvent = result.events.find(e => e.type === 'game-over');
     if (goEvent) {
       const iWin = (goEvent.winner === 'host') === S.isHost;
-      setTimeout(() => _showGameOver(iWin), 800);
+      _pendingBattleTimeouts.push(setTimeout(() => _showGameOver(iWin), 800));
       return;
     }
 
@@ -653,7 +688,7 @@ function _applyResult(result) {
     } else {
       _checkReadyForNextTurn();
     }
-  }, delay + 200);
+  }, delay + 200));
 }
 
 function _checkReadyForNextTurn() {
