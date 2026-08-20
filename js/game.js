@@ -3,7 +3,7 @@
 // The HOST resolves every turn and sends the full result to the guest.
 // Both sides then call applyTurnResult() with that same object to stay in sync.
 
-// Moves that make physical contact with the target
+// Legacy contact set — used for moves without a .contact property
 const CONTACT_MOVES = new Set([
   'Sand Slash','Bulldoze','Dig',
   'Peck','Wing Attack','Air Slash','Aerial Ace',
@@ -23,9 +23,18 @@ const CONTACT_MOVES = new Set([
   'Fury Swipes',
 ]);
 
-function buildBattleCreature(creatureData, variantSprite, abilityId) {
+function _isContact(move) {
+  if (move.contact != null) return move.contact;
+  return CONTACT_MOVES.has(move.name);
+}
+
+function buildBattleCreature(creatureData, variantSprite, abilityId, selectedMoveNames) {
+  const moves = selectedMoveNames?.length
+    ? selectedMoveNames.map(n => MOVE_POOL[n] ? { name: n, ...MOVE_POOL[n] } : null).filter(Boolean)
+    : creatureData.moves;
   return {
     ...creatureData,
+    moves,
     maxHp:           creatureData.hp,
     currentHp:       creatureData.hp,
     status:          null,
