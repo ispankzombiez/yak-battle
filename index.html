@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
+  <script>const PAGE_VERSION = '202608201620';</script>
 </head>
 <body>
 
@@ -21,6 +22,15 @@
   </div>
   <!-- hide immediately for returning users before first paint -->
   <script>if(localStorage.getItem('yak-battle-disclaimer')==='agreed')document.getElementById('disclaimer-modal').style.display='none';</script>
+
+  <!-- Update available panel -->
+  <div id="update-panel" class="update-overlay hidden">
+    <div class="update-box">
+      <h2 class="update-title">⬆ UPDATE AVAILABLE</h2>
+      <p class="update-text">A new version of Yak Battle is available.<br>Click OK to reload and apply the update.</p>
+      <button id="btn-update-ok" class="btn-update-ok">OK</button>
+    </div>
+  </div>
 
   <!-- Persistent exit button (hidden on lobby) -->
   <button id="btn-exit" class="btn-exit hidden">✕ EXIT</button>
@@ -203,14 +213,14 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
-  <script src="js/firebase-config.js?v=202608201610"></script>
+  <script src="js/firebase-config.js?v=202608201620"></script>
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-  <script src="js/moves.js?v=202608201610"></script>
-  <script src="js/abilities.js?v=202608201610"></script>
-  <script src="js/creatures.js?v=202608201610"></script>
-  <script src="js/network.js?v=202608201610"></script>
-  <script src="js/game.js?v=202608201610"></script>
-  <script src="js/app.js?v=202608201610"></script>
+  <script src="js/moves.js?v=202608201620"></script>
+  <script src="js/abilities.js?v=202608201620"></script>
+  <script src="js/creatures.js?v=202608201620"></script>
+  <script src="js/network.js?v=202608201620"></script>
+  <script src="js/game.js?v=202608201620"></script>
+  <script src="js/app.js?v=202608201620"></script>
   <script>
     (function () {
       if (localStorage.getItem('yak-battle-disclaimer') === 'agreed') return;

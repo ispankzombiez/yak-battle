@@ -3,6 +3,23 @@
 // Timeout handles for the current battle's event/render chain; cancelled on new battle start.
 let _pendingBattleTimeouts = [];
 
+// ── Version check ─────────────────────────────────────────────────────────────
+(async function _checkVersion() {
+  try {
+    const res = await fetch('./version.json?_=' + Date.now());
+    if (!res.ok) return;
+    const { version } = await res.json();
+    if (version !== PAGE_VERSION) {
+      document.getElementById('update-panel').classList.remove('hidden');
+    }
+  } catch { /* ignore network errors */ }
+})();
+
+document.getElementById('btn-update-ok').addEventListener('click', () => {
+  // Redirect with a cache-busting param so browser fetches fresh index.html + scripts
+  window.location.replace(location.origin + location.pathname + '?r=' + Date.now());
+});
+
 // ── App state ─────────────────────────────────────────────────────────────────
 const S = {
   playerName:    'Trainer',
