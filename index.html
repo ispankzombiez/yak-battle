@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
-  <script>const PAGE_VERSION = '202608201645';</script>
+  <script>const PAGE_VERSION = '202608201655';</script>
 </head>
 <body>
 
@@ -42,14 +42,17 @@
     <h1 class="logo">⚔ YAK BATTLE</h1>
 
     <div class="lobby-inner">
-      <input
-        id="player-name"
-        type="text"
-        class="name-input"
-        placeholder="USERNAME"
-        maxlength="16"
-        autocomplete="off"
-      >
+      <div class="join-row">
+        <input
+          id="player-name"
+          type="text"
+          class="name-input"
+          placeholder="USERNAME"
+          maxlength="16"
+          autocomplete="off"
+        >
+        <button id="btn-manage-team" class="btn btn-outline">🎒 MANAGE TEAM</button>
+      </div>
 
       <button id="btn-host-public"  class="btn btn-primary">⚑ HOST PUBLIC BATTLE</button>
       <button id="btn-host-private" class="btn btn-secondary">🔒 HOST PRIVATE BATTLE</button>
@@ -70,10 +73,6 @@
       </div>
 
       <button id="btn-browse" class="btn btn-outline">📋 BROWSE PUBLIC BATTLES</button>
-
-      <div class="lobby-divider">OR</div>
-
-      <button id="btn-manage-team" class="btn btn-outline">🎒 MANAGE TEAM</button>
     </div>
   </div>
 
@@ -217,14 +216,14 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
-  <script src="js/firebase-config.js?v=202608201645"></script>
+  <script src="js/firebase-config.js?v=202608201655"></script>
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-  <script src="js/moves.js?v=202608201645"></script>
-  <script src="js/abilities.js?v=202608201645"></script>
-  <script src="js/creatures.js?v=202608201645"></script>
-  <script src="js/network.js?v=202608201645"></script>
-  <script src="js/game.js?v=202608201645"></script>
-  <script src="js/app.js?v=202608201645"></script>
+  <script src="js/moves.js?v=202608201655"></script>
+  <script src="js/abilities.js?v=202608201655"></script>
+  <script src="js/creatures.js?v=202608201655"></script>
+  <script src="js/network.js?v=202608201655"></script>
+  <script src="js/game.js?v=202608201655"></script>
+  <script src="js/app.js?v=202608201655"></script>
   <script>
     (function () {
       if (localStorage.getItem('yak-battle-disclaimer') === 'agreed') return;

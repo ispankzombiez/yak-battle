@@ -146,6 +146,7 @@ h2 {
 
 .join-row { display: flex; gap: 8px; width: 100%; }
 .join-row .code-input { flex: 1; text-transform: uppercase; }
+.join-row .name-input  { flex: 1; }
 .join-row .btn { flex: 1; width: auto; }
 
 .lobby-inner .btn { width: 100%; }
