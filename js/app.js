@@ -873,6 +873,7 @@ function _showEvent(ev) {
       _log(`${name} was hurt by ${ev.defName}'s <b>${ev.ability}</b>! (${ev.amount} dmg)`);
       break;
     }
+  }
 }
 
 // ── Game-over screen ──────────────────────────────────────────────────────────
