@@ -2,6 +2,7 @@
 
 // Timeout handles for the current battle's event/render chain; cancelled on new battle start.
 let _pendingBattleTimeouts = [];
+let _soloBuilder = false; // true when editing team from lobby (no opponent)
 
 // ── Version check ─────────────────────────────────────────────────────────────
 (async function _checkVersion() {
@@ -191,8 +192,13 @@ function handleMessage(msg) {
 document.getElementById('btn-exit').addEventListener('click', () => {
   _pendingBattleTimeouts.forEach(clearTimeout);
   _pendingBattleTimeouts = [];
+  _soloBuilder = false;
   netDisconnect();
   showScreen('lobby');
+});
+
+document.getElementById('btn-manage-team').addEventListener('click', () => {
+  enterCreatureSelect(true);
 });
 
 document.getElementById('btn-host-public').addEventListener('click', async () => {
@@ -283,7 +289,8 @@ async function loadPublicRooms() {
 
 // ── Creature select screen ────────────────────────────────────────────────────
 
-function enterCreatureSelect() {
+function enterCreatureSelect(solo = false) {
+  _soloBuilder        = solo;
   S.myConfirmed       = false;
   S.oppConfirmed      = false;
   S._mySelectedTeam   = _loadSavedTeam();
@@ -292,7 +299,7 @@ function enterCreatureSelect() {
   S._pendingAbility   = null;
   S._pendingMoves     = [];
   showScreen('select');
-  document.getElementById('opp-select-status').textContent = 'Opponent is selecting…';
+  document.getElementById('opp-select-status').textContent = solo ? '' : 'Opponent is selecting…';
   document.getElementById('select-preview').classList.add('hidden');
   _renderTeamSlots();
   _updateConfirmBtn();
@@ -366,8 +373,8 @@ function _removeFromTeam(slotIdx) {
 function _updateConfirmBtn() {
   const n   = S._mySelectedTeam.length;
   const btn = document.getElementById('btn-confirm-select');
-  btn.disabled    = n < 3 || S.myConfirmed;
-  btn.textContent = `CONFIRM (${n}/3)`;
+  btn.disabled    = n < 3 || (!_soloBuilder && S.myConfirmed);
+  btn.textContent = _soloBuilder ? `SAVE & EXIT (${n}/3)` : `CONFIRM (${n}/3)`;
 }
 
 function _refreshCardBadges() {
@@ -520,7 +527,13 @@ function _selectCard(id) {
 }
 
 document.getElementById('btn-confirm-select').addEventListener('click', () => {
-  if (S._mySelectedTeam.length < 3 || S.myConfirmed) return;
+  if (S._mySelectedTeam.length < 3) return;
+  if (_soloBuilder) {
+    _soloBuilder = false;
+    showScreen('lobby');
+    return;
+  }
+  if (S.myConfirmed) return;
   S.myConfirmed = true;
   document.getElementById('btn-confirm-select').textContent = 'WAITING…';
   document.getElementById('btn-confirm-select').disabled = true;
