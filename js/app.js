@@ -32,7 +32,8 @@ const S = {
 function showScreen(name) {
   document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
   document.getElementById('screen-' + name).classList.add('active');
-  document.getElementById('btn-exit').classList.toggle('hidden', name === 'lobby');
+  const showExit = name === 'select' || name === 'battle';
+  document.getElementById('btn-exit').classList.toggle('hidden', !showExit);
 }
 
 // ── Utility ───────────────────────────────────────────────────────────────────

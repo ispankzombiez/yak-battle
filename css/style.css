@@ -79,13 +79,13 @@ html, body {
 .btn-back:hover { color: var(--text); }
 
 .btn-exit {
-  position: fixed; top: 14px; left: 14px; z-index: 999;
-  background: none; border: 1px solid var(--border); color: var(--text-dim);
-  font-family: var(--pixel-font); font-size: 0.5rem; cursor: pointer;
-  padding: 5px 10px; letter-spacing: 0.05em; border-radius: 4px;
-  transition: color 0.15s, border-color 0.15s;
+  position: fixed; top: 24px; left: 24px; z-index: 999;
+  background: var(--red); border: none; color: #fff;
+  font-family: var(--pixel-font); font-size: 0.6rem; cursor: pointer;
+  padding: 8px 16px; letter-spacing: 0.06em; border-radius: 4px;
+  transition: filter 0.15s;
 }
-.btn-exit:hover { color: var(--text); border-color: var(--text); }
+.btn-exit:hover { filter: brightness(1.2); }
 
 /* ── Type badge ──────────────────────────────────────────────────────────── */
 .type-badge {
