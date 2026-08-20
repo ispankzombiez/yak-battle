@@ -90,15 +90,19 @@
   <!-- ══════════════════════════════════════════════════════════════════════ -->
   <div id="screen-select" class="screen">
     <div class="select-top">
-      <h2 style="margin:0">CHOOSE YOUR CREATURE</h2>
+      <h2 style="margin:0">BUILD YOUR TEAM</h2>
       <span id="opp-select-status"></span>
     </div>
 
-    <div id="creature-grid" class="creature-grid"></div>
+    <div id="team-slots" class="team-slots"></div>
+
+    <div class="select-body">
+      <div id="creature-grid" class="creature-grid"></div>
+      <div id="select-preview" class="hidden"></div>
+    </div>
 
     <div class="select-footer">
-      <div id="select-preview" class="hidden"></div>
-      <button id="btn-confirm-select" class="btn btn-primary" disabled>CONFIRM</button>
+      <button id="btn-confirm-select" class="btn btn-primary" disabled>CONFIRM (0/3)</button>
     </div>
   </div>
 
@@ -125,6 +129,7 @@
             <span id="opp-hp-text" class="hp-numbers">— / —</span>
           </div>
           <div id="opp-status" class="status-badge hidden"></div>
+          <div id="opp-team-indicator" class="team-indicator"></div>
         </div>
         <div class="sprite-wrap">
           <img id="opp-sprite" src="" alt="opponent" class="creature-sprite">
@@ -150,6 +155,7 @@
             <span id="my-hp-text" class="hp-numbers">— / —</span>
           </div>
           <div id="my-status" class="status-badge hidden"></div>
+          <div id="my-team-indicator" class="team-indicator"></div>
         </div>
       </div>
 
@@ -158,6 +164,15 @@
     <div id="battle-log" class="battle-log"></div>
 
     <div id="move-buttons" class="move-buttons"></div>
+
+    <button id="btn-switch" class="btn btn-secondary btn-switch">⇄ SWITCH</button>
+
+    <div id="switch-panel" class="switch-panel hidden">
+      <p id="switch-forced-msg" class="switch-forced-msg hidden">Your creature fainted! Choose your next creature:</p>
+      <p class="switch-title">Switch Creature:</p>
+      <div id="switch-options" class="switch-options"></div>
+      <button id="btn-cancel-switch" class="btn btn-secondary btn-sm">CANCEL</button>
+    </div>
 
     <div id="battle-waiting" class="battle-waiting hidden">Waiting for opponent's move…</div>
 

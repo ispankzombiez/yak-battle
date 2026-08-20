@@ -1,17 +1,25 @@
-// ── Yak Battle — main application controller ──────────────────────────────────
+﻿// ── Yak Battle — main application controller ──────────────────────────────────
 
 // ── App state ─────────────────────────────────────────────────────────────────
 const S = {
   playerName:    'Trainer',
   opponentName:  'Opponent',
   isHost:        false,
-  myCreature:    null,  // battle creature object (currentHp, status, etc.)
-  oppCreature:   null,
-  myConfirmed:   false, // creature select confirmed
+  myTeam:        [],    // array of 3 battle creature objects
+  oppTeam:       [],    // array of 3 battle creature objects
+  myActiveIdx:   0,
+  oppActiveIdx:  0,
+  myConfirmed:   false,
   oppConfirmed:  false,
-  myPendingMove: null,  // move index chosen this turn (not yet resolved)
-  guestPendingMove: null, // host only: received guest's move
-  turnActive:    false,
+  myPendingAction:    null,  // { type: 'move', moveIndex } | { type: 'switch', targetIdx }
+  guestPendingAction: null,  // host only
+  turnActive:         false,
+  myForcedSwitch:     false,
+  oppForcedSwitch:    false,
+  _mySelectedTeam:    [],    // [{id, variant}, ...] built during select screen
+  _pendingPreviewId:  null,
+  _pendingVariant:    null,
+  _oppTeamData:       null,  // [{id, variant}, ...] from opponent's creature-ready
 };
 
 // ── Screen management ─────────────────────────────────────────────────────────
@@ -50,7 +58,6 @@ function handleMessage(msg) {
     case 'hello':
       S.opponentName = esc(msg.name);
       if (S.isHost) {
-        // Guest connected — close Firebase room listing, send ack, go to select
         netCloseRoom();
         netSend({ type: 'hello-ack', name: S.playerName });
         enterCreatureSelect();
@@ -59,7 +66,7 @@ function handleMessage(msg) {
 
     case 'hello-ack':
       S.opponentName = esc(msg.name);
-      enterCreatureSelect(); // guest enters select
+      enterCreatureSelect();
       break;
 
     case 'creature-ready':
@@ -74,9 +81,19 @@ function handleMessage(msg) {
 
     case 'move':
       if (S.isHost) {
-        S.guestPendingMove = msg.moveIndex;
+        S.guestPendingAction = msg.action;
         _tryHostResolve();
       }
+      break;
+
+    case 'forced-switch':
+      // Opponent chose a new creature after their mon fainted
+      S.oppActiveIdx    = msg.targetIdx;
+      S.oppForcedSwitch = false;
+      _renderActiveCreatures();
+      _renderTeamIndicators();
+      _log(`${S.opponentName} sent out <b>${esc(S.oppTeam[msg.targetIdx].name)}</b>!`);
+      _checkReadyForNextTurn();
       break;
 
     case 'turn-result':
@@ -193,16 +210,20 @@ async function loadPublicRooms() {
 // ── Creature select screen ────────────────────────────────────────────────────
 
 function enterCreatureSelect() {
-  S.myConfirmed  = false;
-  S.oppConfirmed = false;
+  S.myConfirmed       = false;
+  S.oppConfirmed      = false;
+  S._mySelectedTeam   = [];
+  S._pendingPreviewId = null;
+  S._pendingVariant   = null;
   showScreen('select');
   document.getElementById('opp-select-status').textContent = 'Opponent is selecting…';
   document.getElementById('btn-confirm-select').disabled = true;
-  document.getElementById('btn-confirm-select').textContent = 'CONFIRM';
+  document.getElementById('btn-confirm-select').textContent = 'CONFIRM (0/3)';
+  document.getElementById('select-preview').classList.add('hidden');
+  _renderTeamSlots();
 
   const grid = document.getElementById('creature-grid');
   grid.innerHTML = '';
-
   CREATURES.forEach(c => {
     const card = document.createElement('div');
     card.className = 'creature-card';
@@ -218,6 +239,63 @@ function enterCreatureSelect() {
   });
 }
 
+function _renderTeamSlots() {
+  const slotsEl = document.getElementById('team-slots');
+  slotsEl.innerHTML = '';
+  for (let i = 0; i < 3; i++) {
+    const entry = S._mySelectedTeam[i];
+    const div   = document.createElement('div');
+    div.className = 'team-slot' + (entry ? ' filled' : '');
+    if (entry) {
+      const c = CREATURES.find(x => x.id === entry.id);
+      div.innerHTML = `
+        <img src="${entry.variant || c.sprite}" alt="${esc(c.name)}">
+        <span>${esc(c.name)}</span>
+        <button class="slot-remove" data-slot="${i}" title="Remove">✕</button>
+      `;
+      div.querySelector('.slot-remove').addEventListener('click', (e) => {
+        e.stopPropagation();
+        _removeFromTeam(i);
+      });
+    } else {
+      div.innerHTML = `<span class="slot-num">${i + 1}</span>`;
+    }
+    slotsEl.appendChild(div);
+  }
+}
+
+function _addToTeam() {
+  if (S._mySelectedTeam.length >= 3) return;
+  if (!S._pendingPreviewId) return;
+  if (S._mySelectedTeam.some(x => x.id === S._pendingPreviewId)) return;
+  S._mySelectedTeam.push({ id: S._pendingPreviewId, variant: S._pendingVariant });
+  _renderTeamSlots();
+  _updateConfirmBtn();
+  _refreshCardBadges();
+}
+
+function _removeFromTeam(slotIdx) {
+  S._mySelectedTeam.splice(slotIdx, 1);
+  _renderTeamSlots();
+  _updateConfirmBtn();
+  _refreshCardBadges();
+  if (S._pendingPreviewId) _selectCard(S._pendingPreviewId);
+}
+
+function _updateConfirmBtn() {
+  const n   = S._mySelectedTeam.length;
+  const btn = document.getElementById('btn-confirm-select');
+  btn.disabled    = n < 3 || S.myConfirmed;
+  btn.textContent = `CONFIRM (${n}/3)`;
+}
+
+function _refreshCardBadges() {
+  const onTeamIds = new Set(S._mySelectedTeam.map(x => x.id));
+  document.querySelectorAll('.creature-card').forEach(card => {
+    card.classList.toggle('on-team', onTeamIds.has(card.dataset.id));
+  });
+}
+
 function _selectCard(id) {
   if (S.myConfirmed) return;
   document.querySelectorAll('.creature-card').forEach(c => c.classList.remove('selected'));
@@ -225,12 +303,21 @@ function _selectCard(id) {
   card.classList.add('selected');
 
   const c = CREATURES.find(x => x.id === id);
-  // Reset variant to default when switching creatures
-  S._pendingVariant = c.sprite;
+
+  // Reset variant only when switching to a new creature
+  if (S._pendingPreviewId !== id) {
+    const teamEntry = S._mySelectedTeam.find(x => x.id === id);
+    S._pendingVariant = teamEntry ? teamEntry.variant : c.sprite;
+  }
+  S._pendingPreviewId = id;
+
+  const onTeam       = S._mySelectedTeam.some(x => x.id === id);
+  const teamFull     = S._mySelectedTeam.length >= 3;
+  const currentVariant = S._pendingVariant || c.sprite;
 
   const preview = document.getElementById('select-preview');
   preview.innerHTML = `
-    <img src="${c.sprite}" alt="${esc(c.name)}" id="preview-sprite-img">
+    <img src="${currentVariant}" alt="${esc(c.name)}" id="preview-sprite-img">
     <div class="preview-info">
       <strong>${esc(c.name)}</strong>
       <span class="type-badge" style="background:${getTypeColor(c.type)}">${c.type}</span>
@@ -241,7 +328,7 @@ function _selectCard(id) {
       ${c.variants && c.variants.length > 1 ? `
         <div class="variant-picker">
           <span class="variant-label">Colour:</span>
-          ${c.variants.map(v => `<img src="${v}" class="variant-thumb${v === c.sprite ? ' active' : ''}" data-variant="${v}" title="${v}">`).join('')}
+          ${c.variants.map(v => `<img src="${v}" class="variant-thumb${v === currentVariant ? ' active' : ''}" data-variant="${v}" title="${v}">`).join('')}
         </div>
       ` : ''}
       <div class="preview-moves">
@@ -250,51 +337,63 @@ function _selectCard(id) {
     </div>
   `;
 
-  // Variant click handlers
   preview.querySelectorAll('.variant-thumb').forEach(img => {
     img.addEventListener('click', () => {
       S._pendingVariant = img.dataset.variant;
       preview.querySelectorAll('.variant-thumb').forEach(i => i.classList.remove('active'));
       img.classList.add('active');
       document.getElementById('preview-sprite-img').src = S._pendingVariant;
+      const teamIdx = S._mySelectedTeam.findIndex(x => x.id === id);
+      if (teamIdx >= 0) {
+        S._mySelectedTeam[teamIdx].variant = S._pendingVariant;
+        _renderTeamSlots();
+      }
     });
   });
 
+  const addBtn = document.createElement('button');
+  addBtn.className   = 'btn btn-sm ' + (onTeam ? 'btn-danger' : 'btn-primary');
+  addBtn.style.marginTop = '8px';
+  addBtn.textContent = onTeam ? '✕ REMOVE' : (teamFull ? 'TEAM FULL' : '＋ ADD TO TEAM');
+  addBtn.disabled    = !onTeam && teamFull;
+  addBtn.addEventListener('click', () => {
+    if (onTeam) {
+      _removeFromTeam(S._mySelectedTeam.findIndex(x => x.id === id));
+    } else {
+      _addToTeam();
+      _selectCard(id);
+    }
+  });
+  preview.querySelector('.preview-info').appendChild(addBtn);
   preview.classList.remove('hidden');
-  document.getElementById('btn-confirm-select').disabled = false;
-  S._pendingSelectId = id;
 }
 
 document.getElementById('btn-confirm-select').addEventListener('click', () => {
-  if (!S._pendingSelectId || S.myConfirmed) return;
+  if (S._mySelectedTeam.length < 3 || S.myConfirmed) return;
   S.myConfirmed = true;
   document.getElementById('btn-confirm-select').textContent = 'WAITING…';
   document.getElementById('btn-confirm-select').disabled = true;
-  netSend({ type: 'creature-ready', creatureId: S._pendingSelectId, variant: S._pendingVariant });
+  netSend({ type: 'creature-ready', team: S._mySelectedTeam });
   if (S.isHost) _maybeStartBattle();
 });
 
 function _maybeStartBattle() {
   if (!S.isHost || !S.myConfirmed || !S.oppConfirmed) return;
-  const oppId = S._pendingOppId;
-  if (!oppId) return;
+  if (!S._oppTeamData) return;
   const battleMsg = {
-    type: 'battle-start',
-    hostCreatureId:  S._pendingSelectId,
-    hostVariant:     S._pendingVariant,
-    guestCreatureId: oppId,
-    guestVariant:    S._pendingOppVariant,
+    type:      'battle-start',
+    hostTeam:  S._mySelectedTeam,
+    guestTeam: S._oppTeamData,
   };
   netSend(battleMsg);
   startBattle(battleMsg);
 }
 
-// Intercept creature-ready to capture the opponent's creature ID before handleMessage runs
+// Intercept creature-ready to capture opponent team before handleMessage runs
 netSetHandlers({
   onMessage: (msg) => {
     if (msg.type === 'creature-ready') {
-      S._pendingOppId      = msg.creatureId;
-      S._pendingOppVariant = msg.variant || null;
+      S._oppTeamData = msg.team;
     }
     handleMessage(msg);
   },
@@ -304,46 +403,65 @@ netSetHandlers({
 // ── Battle screen ─────────────────────────────────────────────────────────────
 
 function startBattle(msg) {
-  const hostData  = CREATURES.find(c => c.id === msg.hostCreatureId);
-  const guestData = CREATURES.find(c => c.id === msg.guestCreatureId);
+  const myTeamData  = S.isHost ? msg.hostTeam  : msg.guestTeam;
+  const oppTeamData = S.isHost ? msg.guestTeam : msg.hostTeam;
 
-  S.myCreature  = buildBattleCreature(
-    S.isHost ? hostData  : guestData,
-    S.isHost ? msg.hostVariant  : msg.guestVariant
-  );
-  S.oppCreature = buildBattleCreature(
-    S.isHost ? guestData : hostData,
-    S.isHost ? msg.guestVariant : msg.hostVariant
-  );
-  S.myPendingMove   = null;
-  S.guestPendingMove = null;
-  S.turnActive  = false;
+  S.myTeam  = myTeamData.map(entry => {
+    const c = CREATURES.find(x => x.id === entry.id);
+    return buildBattleCreature(c, entry.variant || c.sprite);
+  });
+  S.oppTeam = oppTeamData.map(entry => {
+    const c = CREATURES.find(x => x.id === entry.id);
+    return buildBattleCreature(c, entry.variant || c.sprite);
+  });
+
+  S.myActiveIdx        = 0;
+  S.oppActiveIdx       = 0;
+  S.myPendingAction    = null;
+  S.guestPendingAction = null;
+  S.turnActive         = false;
+  S.myForcedSwitch     = false;
+  S.oppForcedSwitch    = false;
 
   showScreen('battle');
+  document.getElementById('battle-log').innerHTML = '';
   _renderBattleUI();
-  _log(`Battle start! ${S.playerName}'s ${S.myCreature.name} vs ${S.opponentName}'s ${S.oppCreature.name}!`);
-  _setMoveButtonsEnabled(true);
+  _log(`Battle start! ${S.playerName} vs ${S.opponentName}!`);
+  _setBattleActionsEnabled(true);
 }
 
 function _renderBattleUI() {
-  // Opponent info
-  document.getElementById('opp-creature-name').textContent = S.oppCreature.name;
+  _renderActiveCreatures();
+  _renderMoveButtons();
+  _renderTeamIndicators();
+}
+
+function _renderActiveCreatures() {
+  const my  = S.myTeam[S.myActiveIdx];
+  const opp = S.oppTeam[S.oppActiveIdx];
+
+  document.getElementById('opp-creature-name').textContent = opp.name;
   document.getElementById('opp-trainer-name').textContent  = S.opponentName;
-  _setTypeBadge('opp-type-badge', S.oppCreature.type);
-  document.getElementById('opp-sprite').src = S.oppCreature.sprite;
-  _updateHpBar('opp', S.oppCreature.currentHp, S.oppCreature.maxHp);
+  _setTypeBadge('opp-type-badge', opp.type);
+  document.getElementById('opp-sprite').src = opp.sprite;
+  document.getElementById('opp-sprite').classList.remove('fainted');
+  _updateHpBar('opp', opp.currentHp, opp.maxHp);
+  _updateStatusBadge('opp', opp.status);
 
-  // My info
-  document.getElementById('my-creature-name').textContent = S.myCreature.name;
+  document.getElementById('my-creature-name').textContent = my.name;
   document.getElementById('my-trainer-name').textContent  = S.playerName;
-  _setTypeBadge('my-type-badge', S.myCreature.type);
-  document.getElementById('my-sprite').src = S.myCreature.sprite;
-  _updateHpBar('my', S.myCreature.currentHp, S.myCreature.maxHp);
+  _setTypeBadge('my-type-badge', my.type);
+  document.getElementById('my-sprite').src = my.sprite;
+  document.getElementById('my-sprite').classList.remove('fainted');
+  _updateHpBar('my', my.currentHp, my.maxHp);
+  _updateStatusBadge('my', my.status);
+}
 
-  // Move buttons
+function _renderMoveButtons() {
+  const my = S.myTeam[S.myActiveIdx];
   const container = document.getElementById('move-buttons');
   container.innerHTML = '';
-  S.myCreature.moves.forEach((move, i) => {
+  my.moves.forEach((move, i) => {
     const btn = document.createElement('button');
     btn.className = 'move-btn';
     btn.dataset.index = i;
@@ -352,30 +470,45 @@ function _renderBattleUI() {
       <span class="type-badge move-btn-type" style="background:${getTypeColor(move.type)}">${move.type}</span>
       <span class="move-btn-power">${move.power > 0 ? `PWR ${move.power}` : 'STATUS'}</span>
     `;
-    btn.addEventListener('click', () => _onMoveClick(i));
+    btn.addEventListener('click', () => _onActionPicked({ type: 'move', moveIndex: i }));
     container.appendChild(btn);
   });
 }
 
-function _onMoveClick(moveIndex) {
+function _renderTeamIndicators() {
+  for (const [prefix, team, activeIdx] of [['my', S.myTeam, S.myActiveIdx], ['opp', S.oppTeam, S.oppActiveIdx]]) {
+    const el = document.getElementById(prefix + '-team-indicator');
+    if (!el) continue;
+    el.innerHTML = team.map((c, i) => {
+      const cls = c.currentHp <= 0 ? 'fainted' : i === activeIdx ? 'active' : 'alive';
+      return `<span class="team-dot ${cls}" title="${esc(c.name)}"></span>`;
+    }).join('');
+  }
+}
+
+function _onActionPicked(action) {
   if (S.turnActive) return;
-  S.turnActive    = true;
-  S.myPendingMove = moveIndex;
-  _setMoveButtonsEnabled(false);
+  S.turnActive      = true;
+  S.myPendingAction = action;
+  _setBattleActionsEnabled(false);
   document.getElementById('battle-waiting').classList.remove('hidden');
 
   if (S.isHost) {
     _tryHostResolve();
   } else {
-    netSend({ type: 'move', moveIndex });
+    netSend({ type: 'move', action });
   }
 }
 
 function _tryHostResolve() {
-  if (S.myPendingMove === null || S.guestPendingMove === null) return;
-  const result = resolveTurn(S.myCreature, S.oppCreature, S.myPendingMove, S.guestPendingMove);
-  S.myPendingMove    = null;
-  S.guestPendingMove = null;
+  if (S.myPendingAction === null || S.guestPendingAction === null) return;
+  const result = resolveTurn(
+    S.myTeam, S.oppTeam,
+    S.myActiveIdx, S.oppActiveIdx,
+    S.myPendingAction, S.guestPendingAction
+  );
+  S.myPendingAction    = null;
+  S.guestPendingAction = null;
   netSend({ type: 'turn-result', ...result });
   _applyResult(result);
 }
@@ -383,55 +516,142 @@ function _tryHostResolve() {
 function _applyResult(result) {
   document.getElementById('battle-waiting').classList.add('hidden');
 
-  // Update battle objects
-  S.myCreature.currentHp   = S.isHost ? result.hostHp    : result.guestHp;
-  S.oppCreature.currentHp  = S.isHost ? result.guestHp   : result.hostHp;
-  S.myCreature.status      = S.isHost ? result.hostStatus  : result.guestStatus;
-  S.oppCreature.status     = S.isHost ? result.guestStatus : result.hostStatus;
+  const myTeamHp      = S.isHost ? result.hostTeamHp      : result.guestTeamHp;
+  const oppTeamHp     = S.isHost ? result.guestTeamHp     : result.hostTeamHp;
+  const myTeamStatus  = S.isHost ? result.hostTeamStatus  : result.guestTeamStatus;
+  const oppTeamStatus = S.isHost ? result.guestTeamStatus : result.hostTeamStatus;
 
-  // Animate events sequentially (simple queue with timeouts)
+  myTeamHp.forEach((hp, i)      => { S.myTeam[i].currentHp  = hp; });
+  oppTeamHp.forEach((hp, i)     => { S.oppTeam[i].currentHp = hp; });
+  myTeamStatus.forEach((st, i)  => { S.myTeam[i].status     = st; });
+  oppTeamStatus.forEach((st, i) => { S.oppTeam[i].status    = st; });
+
+  // Reflect voluntary switches that happened during the turn
+  S.myActiveIdx  = S.isHost ? result.hostActiveIdx  : result.guestActiveIdx;
+  S.oppActiveIdx = S.isHost ? result.guestActiveIdx : result.hostActiveIdx;
+
   let delay = 0;
   result.events.forEach(ev => {
     setTimeout(() => _showEvent(ev), delay);
     delay += 600;
   });
 
-  // Update HP bars and check for game over after all events render
   setTimeout(() => {
-    _updateHpBar('my',  S.myCreature.currentHp,  S.myCreature.maxHp);
-    _updateHpBar('opp', S.oppCreature.currentHp, S.oppCreature.maxHp);
-    _updateStatusBadge('my',  S.myCreature.status);
-    _updateStatusBadge('opp', S.oppCreature.status);
+    _renderActiveCreatures();
+    _renderTeamIndicators();
 
     const goEvent = result.events.find(e => e.type === 'game-over');
     if (goEvent) {
       const iWin = (goEvent.winner === 'host') === S.isHost;
       setTimeout(() => _showGameOver(iWin), 800);
+      return;
+    }
+
+    const myFainted  = S.myTeam[S.myActiveIdx].currentHp  <= 0;
+    const oppFainted = S.oppTeam[S.oppActiveIdx].currentHp <= 0;
+    S.myForcedSwitch  = myFainted  && S.myTeam.some(c  => c.currentHp > 0);
+    S.oppForcedSwitch = oppFainted && S.oppTeam.some(c => c.currentHp > 0);
+
+    if (S.myForcedSwitch) {
+      _showSwitchPanel(true);
     } else {
-      S.turnActive    = false;
-      S.myPendingMove = null;
-      _setMoveButtonsEnabled(true);
+      _checkReadyForNextTurn();
     }
   }, delay + 200);
 }
 
+function _checkReadyForNextTurn() {
+  if (S.myForcedSwitch || S.oppForcedSwitch) return;
+  S.turnActive      = false;
+  S.myPendingAction = null;
+  _setBattleActionsEnabled(true);
+  _renderMoveButtons();
+}
+
+function _showSwitchPanel(forced) {
+  const panel     = document.getElementById('switch-panel');
+  const options   = document.getElementById('switch-options');
+  const forcedMsg = document.getElementById('switch-forced-msg');
+  const cancelBtn = document.getElementById('btn-cancel-switch');
+
+  forcedMsg.classList.toggle('hidden', !forced);
+  cancelBtn.classList.toggle('hidden', forced);
+
+  options.innerHTML = '';
+  S.myTeam.forEach((c, i) => {
+    if (i === S.myActiveIdx) return;
+    const btn = document.createElement('button');
+    btn.className = 'switch-option-btn';
+    btn.disabled  = c.currentHp <= 0;
+    btn.innerHTML = `
+      <img src="${c.sprite}" alt="${esc(c.name)}">
+      <span class="switch-name">${esc(c.name)}</span>
+      <span class="switch-hp">${Math.max(0, c.currentHp)}/${c.maxHp} HP</span>
+    `;
+    btn.addEventListener('click', () => _performSwitch(i, forced));
+    options.appendChild(btn);
+  });
+
+  panel.classList.remove('hidden');
+  _setBattleActionsEnabled(false);
+}
+
+function _performSwitch(targetIdx, forced) {
+  document.getElementById('switch-panel').classList.add('hidden');
+
+  if (forced) {
+    S.myActiveIdx    = targetIdx;
+    S.myForcedSwitch = false;
+    netSend({ type: 'forced-switch', targetIdx });
+    _renderActiveCreatures();
+    _renderMoveButtons();
+    _renderTeamIndicators();
+    _log(`${S.playerName} sent out <b>${esc(S.myTeam[targetIdx].name)}</b>!`);
+    _checkReadyForNextTurn();
+  } else {
+    _onActionPicked({ type: 'switch', targetIdx });
+  }
+}
+
+document.getElementById('btn-switch').addEventListener('click', () => {
+  if (S.turnActive) return;
+  _showSwitchPanel(false);
+});
+
+document.getElementById('btn-cancel-switch').addEventListener('click', () => {
+  document.getElementById('switch-panel').classList.add('hidden');
+  _setBattleActionsEnabled(true);
+});
+
+// ── Battle event display ──────────────────────────────────────────────────────
+
 function _showEvent(ev) {
+  const myActive  = S.myTeam[S.myActiveIdx];
+  const oppActive = S.oppTeam[S.oppActiveIdx];
+
   switch (ev.type) {
+    case 'switch': {
+      const isMe  = (ev.side === 'host') === S.isHost;
+      const team  = isMe ? S.myTeam : S.oppTeam;
+      const trainer = isMe ? S.playerName : S.opponentName;
+      _log(`${trainer} switched in <b>${esc(team[ev.toIdx].name)}</b>!`);
+      break;
+    }
     case 'no-effect': {
       const atkIsMe = (ev.attacker === 'host') === S.isHost;
-      const name = atkIsMe ? S.myCreature.name : S.oppCreature.name;
+      const name    = atkIsMe ? myActive.name : oppActive.name;
       _log(`${name} used <b>${esc(ev.moveName)}</b>… but it had no effect!`);
       break;
     }
     case 'damage': {
       const atkIsMe = (ev.attacker === 'host') === S.isHost;
       const defIsMe = (ev.defender === 'host') === S.isHost;
-      const atkName = atkIsMe ? S.myCreature.name : S.oppCreature.name;
-      const defName = defIsMe ? S.myCreature.name : S.oppCreature.name;
+      const atkName = atkIsMe ? myActive.name : oppActive.name;
+      const defName = defIsMe ? myActive.name : oppActive.name;
       let msg = `${atkName} used <b>${esc(ev.moveName)}</b>! ${defName} took <b>${ev.damage}</b> damage.`;
       if (ev.isCrit) msg += ' <em>Critical hit!</em>';
-      if (ev.effectiveness > 1)  msg += " <em>Super effective!</em>";
-      if (ev.effectiveness < 1)  msg += " <em>Not very effective…</em>";
+      if (ev.effectiveness > 1)  msg += ' <em>Super effective!</em>';
+      if (ev.effectiveness < 1)  msg += ' <em>Not very effective…</em>';
       _log(msg);
       if (defIsMe) _shakeSprite('my');
       else         _shakeSprite('opp');
@@ -442,47 +662,48 @@ function _showEvent(ev) {
       break;
     case 'heal': {
       const isMe = (ev.target === 'host') === S.isHost;
-      const name = isMe ? S.myCreature.name : S.oppCreature.name;
+      const name = isMe ? myActive.name : oppActive.name;
       _log(`${name} used <b>${esc(ev.moveName)}</b> and recovered <b>${ev.amount}</b> HP!`);
       break;
     }
     case 'drain': {
       const isMe = (ev.target === 'host') === S.isHost;
-      const name = isMe ? S.myCreature.name : S.oppCreature.name;
+      const name = isMe ? myActive.name : oppActive.name;
       _log(`${name} drained <b>${ev.amount}</b> HP!`);
       break;
     }
     case 'status-applied': {
-      const isMe = (ev.target === 'host') === S.isHost;
-      const name = isMe ? S.myCreature.name : S.oppCreature.name;
+      const isMe  = (ev.target === 'host') === S.isHost;
+      const name  = isMe ? myActive.name : oppActive.name;
       const label = { burn: 'burned 🔥', poison: 'poisoned ☠', paralyze: 'paralyzed ⚡' }[ev.status];
       _log(`${name} was ${label}!`);
       break;
     }
     case 'status-damage': {
       const isMe = (ev.target === 'host') === S.isHost;
-      const name = isMe ? S.myCreature.name : S.oppCreature.name;
+      const name = isMe ? myActive.name : oppActive.name;
       _log(`${name} took <b>${ev.amount}</b> damage from ${ev.status}!`);
       break;
     }
     case 'paralyzed': {
       const isMe = (ev.target === 'host') === S.isHost;
-      const name = isMe ? S.myCreature.name : S.oppCreature.name;
+      const name = isMe ? myActive.name : oppActive.name;
       _log(`${name} is paralyzed and couldn't move!`);
       break;
     }
     case 'flinched': {
       const isMe = (ev.target === 'host') === S.isHost;
-      const name = isMe ? S.myCreature.name : S.oppCreature.name;
+      const name = isMe ? myActive.name : oppActive.name;
       _log(`${name} flinched and couldn't move!`);
       break;
     }
     case 'fainted': {
       const isMe = (ev.target === 'host') === S.isHost;
-      const name = isMe ? S.myCreature.name : S.oppCreature.name;
+      const team = isMe ? S.myTeam : S.oppTeam;
+      const name = (ev.teamIdx != null ? team[ev.teamIdx] : null)?.name
+                 ?? (isMe ? myActive.name : oppActive.name);
       _log(`<b>${name} fainted!</b>`);
-      const id = isMe ? 'my-sprite' : 'opp-sprite';
-      document.getElementById(id).classList.add('fainted');
+      document.getElementById(isMe ? 'my-sprite' : 'opp-sprite').classList.add('fainted');
       break;
     }
   }
@@ -491,10 +712,12 @@ function _showEvent(ev) {
 // ── Game-over screen ──────────────────────────────────────────────────────────
 
 function _showGameOver(won) {
-  document.getElementById('gameover-title').textContent   = won ? '🏆 YOU WIN!' : '💀 YOU LOSE!';
-  document.getElementById('gameover-winner-sprite').src   = won ? S.myCreature.sprite : S.oppCreature.sprite;
+  const winTeam  = won ? S.myTeam  : S.oppTeam;
+  const survivor = winTeam.find(c => c.currentHp > 0) || winTeam[0];
+  document.getElementById('gameover-title').textContent  = won ? '🏆 YOU WIN!' : '💀 YOU LOSE!';
+  document.getElementById('gameover-winner-sprite').src  = survivor.sprite;
   document.getElementById('gameover-result-text').textContent =
-    won ? `${S.myCreature.name} stood victorious!` : `${S.oppCreature.name} was too strong…`;
+    won ? `${survivor.name} stood victorious!` : `${survivor.name} was too strong…`;
   const rematchBtn = document.getElementById('btn-rematch');
   rematchBtn.textContent = '↺ REMATCH';
   rematchBtn.disabled    = false;
@@ -513,8 +736,10 @@ document.getElementById('btn-return-lobby').addEventListener('click', async () =
 });
 
 function _resetForRematch() {
-  S._pendingSelectId = null;
-  S._pendingOppId    = null;
+  S._mySelectedTeam   = [];
+  S._pendingPreviewId = null;
+  S._pendingVariant   = null;
+  S._oppTeamData      = null;
   enterCreatureSelect();
 }
 
@@ -533,14 +758,14 @@ function _updateHpBar(prefix, current, max) {
   const fill = document.getElementById(prefix + '-hp-fill');
   const text = document.getElementById(prefix + '-hp-text');
   fill.style.width = (pct * 100).toFixed(1) + '%';
-  fill.className = 'hp-fill ' + (pct > 0.5 ? 'hp-high' : pct > 0.25 ? 'hp-mid' : 'hp-low');
+  fill.className   = 'hp-fill ' + (pct > 0.5 ? 'hp-high' : pct > 0.25 ? 'hp-mid' : 'hp-low');
   text.textContent = `${Math.max(0, current)} / ${max}`;
 }
 
 function _setTypeBadge(id, type) {
   const el = document.getElementById(id);
-  el.textContent        = type;
-  el.style.background   = getTypeColor(type);
+  el.textContent      = type;
+  el.style.background = getTypeColor(type);
 }
 
 function _updateStatusBadge(prefix, status) {
@@ -553,8 +778,10 @@ function _updateStatusBadge(prefix, status) {
   }
 }
 
-function _setMoveButtonsEnabled(enabled) {
+function _setBattleActionsEnabled(enabled) {
   document.querySelectorAll('.move-btn').forEach(b => b.disabled = !enabled);
+  const sw = document.getElementById('btn-switch');
+  if (sw) sw.disabled = !enabled;
 }
 
 function _shakeSprite(prefix) {

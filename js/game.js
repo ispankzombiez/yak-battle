@@ -30,133 +30,125 @@ function _calcDamage(attacker, move, defender) {
 
 // ── Turn resolution (called by host only) ────────────────────────────────────
 //
-// Returns a result object safe to JSON-serialize and send over the network.
-// The host and guest both call interpretTurnResult() with this same object.
+// hostAction / guestAction: { type: 'move', moveIndex } | { type: 'switch', targetIdx }
+// Returns a JSON-serializable result sent to both peers.
 
-function resolveTurn(hostCreature, guestCreature, hostMoveIdx, guestMoveIdx) {
-  // Work on shallow copies; caller's objects are NOT mutated
-  const host  = { ...hostCreature };
-  const guest = { ...guestCreature };
+function resolveTurn(hostTeam, guestTeam, hostActiveIdx, guestActiveIdx, hostAction, guestAction) {
+  const hTeam = hostTeam.map(c => ({ ...c }));
+  const gTeam = guestTeam.map(c => ({ ...c }));
+  let hIdx = hostActiveIdx;
+  let gIdx = guestActiveIdx;
   const events = [];
 
-  const hostMove  = host.moves[hostMoveIdx];
-  const guestMove = guest.moves[guestMoveIdx];
+  // Voluntary switches resolve before attacks
+  if (hostAction.type === 'switch') {
+    hIdx = hostAction.targetIdx;
+    events.push({ type: 'switch', side: 'host', toIdx: hIdx, name: hTeam[hIdx].name });
+  }
+  if (guestAction.type === 'switch') {
+    gIdx = guestAction.targetIdx;
+    events.push({ type: 'switch', side: 'guest', toIdx: gIdx, name: gTeam[gIdx].name });
+  }
 
-  // Paralysis check
-  const hostStunned  = host.status  === 'paralyze' && Math.random() < 0.25;
-  const guestStunned = guest.status === 'paralyze' && Math.random() < 0.25;
+  const host  = hTeam[hIdx];
+  const guest = gTeam[gIdx];
+  const hostMove  = hostAction.type  === 'move' ? host.moves[hostAction.moveIndex]  : null;
+  const guestMove = guestAction.type === 'move' ? guest.moves[guestAction.moveIndex] : null;
 
-  // Move order: priority first, then speed (host wins ties)
-  const hp = hostMove.priority  ?? 0;
-  const gp = guestMove.priority ?? 0;
-  const hostFirst = hp !== gp ? hp > gp : host.spd >= guest.spd;
-  const order = hostFirst ? ['host', 'guest'] : ['guest', 'host'];
+  if (hostMove || guestMove) {
+    const hostStunned  = hostMove  && host.status  === 'paralyze' && Math.random() < 0.25;
+    const guestStunned = guestMove && guest.status === 'paralyze' && Math.random() < 0.25;
 
-  const flinched = { host: false, guest: false };
-
-  for (const side of order) {
-    const isHost  = side === 'host';
-    const atk     = isHost ? host  : guest;
-    const def     = isHost ? guest : host;
-    const move    = isHost ? hostMove  : guestMove;
-    const stunned = isHost ? hostStunned : guestStunned;
-    const defSide = isHost ? 'guest' : 'host';
-
-    if (def.currentHp <= 0) break;
-
-    if (stunned) {
-      events.push({ type: 'paralyzed', target: side });
-      continue;
-    }
-    if (flinched[side]) {
-      events.push({ type: 'flinched', target: side });
-      continue;
+    let order;
+    if (hostMove && guestMove) {
+      const hp = hostMove.priority  ?? 0;
+      const gp = guestMove.priority ?? 0;
+      order = (hp !== gp ? hp > gp : host.spd >= guest.spd) ? ['host', 'guest'] : ['guest', 'host'];
+    } else {
+      order = hostMove ? ['host'] : ['guest'];
     }
 
-    // Accuracy check
-    if (move.accuracy != null && Math.random() > move.accuracy) {
-      events.push({ type: 'missed', attacker: side, moveName: move.name });
-      continue;
-    }
+    const flinched = { host: false, guest: false };
 
-    // Heal / status move (power === 0)
-    if (move.power === 0) {
-      if (move.effect?.type === 'heal') {
-        const amt = Math.floor(atk.maxHp * move.effect.amount);
+    for (const side of order) {
+      const isH     = side === 'host';
+      const atk     = isH ? host  : guest;
+      const def     = isH ? guest : host;
+      const move    = isH ? hostMove : guestMove;
+      const defSide = isH ? 'guest' : 'host';
+
+      if (!move || def.currentHp <= 0) continue;
+      if (isH ? hostStunned : guestStunned) { events.push({ type: 'paralyzed', target: side }); continue; }
+      if (flinched[side])                   { events.push({ type: 'flinched',  target: side }); continue; }
+
+      if (move.accuracy != null && Math.random() > move.accuracy) {
+        events.push({ type: 'missed', attacker: side, moveName: move.name });
+        continue;
+      }
+
+      if (move.power === 0) {
+        if (move.effect?.type === 'heal') {
+          const amt = Math.floor(atk.maxHp * move.effect.amount);
+          atk.currentHp = Math.min(atk.maxHp, atk.currentHp + amt);
+          events.push({ type: 'heal', target: side, amount: amt, moveName: move.name });
+        }
+        continue;
+      }
+
+      const calc = _calcDamage(atk, move, def);
+      if (!calc) { events.push({ type: 'no-effect', attacker: side, moveName: move.name }); continue; }
+      const { damage, effectiveness, isCrit } = calc;
+      def.currentHp = Math.max(0, def.currentHp - damage);
+      events.push({ type: 'damage', attacker: side, defender: defSide, moveName: move.name, moveType: move.type, damage, effectiveness, isCrit });
+
+      if (move.effect?.type === 'drain') {
+        const amt = Math.floor(damage * (move.effect.amount ?? 0.5));
         atk.currentHp = Math.min(atk.maxHp, atk.currentHp + amt);
-        events.push({ type: 'heal', target: side, amount: amt, moveName: move.name });
+        events.push({ type: 'drain', target: side, amount: amt });
       }
-      continue;
-    }
-
-    // Damage
-    const calcResult = _calcDamage(atk, move, def);
-    if (!calcResult) {
-      events.push({ type: 'no-effect', attacker: side, moveName: move.name });
-      continue;
-    }
-    const { damage, effectiveness, isCrit } = calcResult;
-    def.currentHp = Math.max(0, def.currentHp - damage);
-    events.push({
-      type: 'damage',
-      attacker: side, defender: defSide,
-      moveName: move.name, moveType: move.type,
-      damage, effectiveness, isCrit,
-    });
-
-    // Drain heal
-    if (move.effect?.type === 'drain') {
-      const amt = Math.floor(damage * (move.effect.amount ?? 0.5));
-      atk.currentHp = Math.min(atk.maxHp, atk.currentHp + amt);
-      events.push({ type: 'drain', target: side, amount: amt });
-    }
-
-    // Flinch
-    if (move.effect?.type === 'flinch' && Math.random() < (move.effect.chance ?? 0)) {
-      flinched[defSide] = true;
-    }
-
-    // Secondary status (burn / poison / paralyze)
-    const eff = move.effect;
-    if (eff && (eff.type === 'burn' || eff.type === 'poison' || eff.type === 'paralyze')) {
-      if (!def.status && Math.random() < (eff.chance ?? 0)) {
-        def.status = eff.type;
-        events.push({ type: 'status-applied', target: defSide, status: eff.type });
+      if (move.effect?.type === 'flinch' && Math.random() < (move.effect.chance ?? 0)) {
+        flinched[defSide] = true;
       }
-    }
-
-    if (def.currentHp <= 0) {
-      events.push({ type: 'fainted', target: defSide });
-      break;
+      const eff = move.effect;
+      if (eff && (eff.type === 'burn' || eff.type === 'poison' || eff.type === 'paralyze')) {
+        if (!def.status && Math.random() < (eff.chance ?? 0)) {
+          def.status = eff.type;
+          events.push({ type: 'status-applied', target: defSide, status: eff.type });
+        }
+      }
+      if (def.currentHp <= 0) {
+        events.push({ type: 'fainted', target: defSide, teamIdx: isH ? gIdx : hIdx });
+        break;
+      }
     }
   }
 
-  // End-of-turn status damage
-  for (const [side, c] of [['host', host], ['guest', guest]]) {
+  // End-of-turn status damage on active creatures
+  for (const [side, c, teamIdx] of [['host', host, hIdx], ['guest', guest, gIdx]]) {
     if (c.currentHp <= 0) continue;
-    let dmg = 0;
-    if (c.status === 'burn')   dmg = Math.max(1, Math.floor(c.maxHp * 0.125));
-    if (c.status === 'poison') dmg = Math.max(1, Math.floor(c.maxHp * 0.0625));
+    const dmg = c.status === 'burn'   ? Math.max(1, Math.floor(c.maxHp * 0.125))
+              : c.status === 'poison' ? Math.max(1, Math.floor(c.maxHp * 0.0625)) : 0;
     if (dmg > 0) {
       c.currentHp = Math.max(0, c.currentHp - dmg);
       events.push({ type: 'status-damage', target: side, status: c.status, amount: dmg });
-      if (c.currentHp <= 0) events.push({ type: 'fainted', target: side });
+      if (c.currentHp <= 0) events.push({ type: 'fainted', target: side, teamIdx });
     }
   }
 
-  // Game-over check
-  if (host.currentHp <= 0 || guest.currentHp <= 0) {
-    events.push({
-      type:   'game-over',
-      winner: host.currentHp <= 0 ? 'guest' : 'host',
-    });
+  // Game over: all 3 of one side fainted
+  const hostAllFainted  = hTeam.every(c => c.currentHp <= 0);
+  const guestAllFainted = gTeam.every(c => c.currentHp <= 0);
+  if (hostAllFainted || guestAllFainted) {
+    events.push({ type: 'game-over', winner: hostAllFainted ? 'guest' : 'host' });
   }
 
   return {
     events,
-    hostHp:     host.currentHp,
-    guestHp:    guest.currentHp,
-    hostStatus: host.status,
-    guestStatus: guest.status,
+    hostTeamHp:      hTeam.map(c => c.currentHp),
+    guestTeamHp:     gTeam.map(c => c.currentHp),
+    hostTeamStatus:  hTeam.map(c => c.status),
+    guestTeamStatus: gTeam.map(c => c.status),
+    hostActiveIdx:   hIdx,
+    guestActiveIdx:  gIdx,
   };
 }

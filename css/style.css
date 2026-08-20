@@ -171,13 +171,40 @@ h2 {
 /* ── Creature select screen ──────────────────────────────────────────────── */
 #screen-select { max-width: 960px; margin: 0 auto; width: 100%; }
 
-.select-top { display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 16px; flex-wrap: wrap; gap: 8px; }
+.select-top { display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
 #opp-select-status { font-size: 0.75rem; color: var(--text-dim); font-family: var(--pixel-font); }
+
+/* Team slots row */
+.team-slots {
+  display: flex; gap: 10px; width: 100%; margin-bottom: 14px;
+}
+.team-slot {
+  flex: 1; min-height: 64px; background: var(--surface); border: 2px dashed var(--border);
+  border-radius: 10px; display: flex; align-items: center; justify-content: center;
+  gap: 6px; padding: 8px; position: relative; overflow: hidden;
+  transition: border-color 0.2s;
+}
+.team-slot.filled {
+  border-style: solid; border-color: var(--accent); flex-direction: row;
+}
+.team-slot.filled img { width: 44px; height: 44px; object-fit: contain; image-rendering: pixelated; flex-shrink: 0; }
+.team-slot.filled span { font-family: var(--pixel-font); font-size: 0.45rem; flex: 1; text-align: center; }
+.team-slot .slot-num { font-family: var(--pixel-font); font-size: 1.2rem; color: var(--border); }
+.slot-remove {
+  background: none; border: none; color: var(--text-dim); cursor: pointer;
+  font-size: 0.7rem; padding: 2px 4px; flex-shrink: 0;
+}
+.slot-remove:hover { color: #f87171; }
+
+/* Select body: grid + preview side by side on wider screens */
+.select-body {
+  display: flex; gap: 16px; width: 100%; align-items: flex-start;
+}
 
 .creature-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-  gap: 10px; width: 100%; margin-bottom: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 10px; flex: 1;
 }
 
 .creature-card {
@@ -188,27 +215,29 @@ h2 {
 }
 .creature-card:hover   { border-color: var(--blue); transform: translateY(-3px); box-shadow: 0 6px 20px rgba(59,130,246,.2); }
 .creature-card.selected{ border-color: var(--accent); box-shadow: 0 0 0 3px rgba(245,158,11,.35); }
+.creature-card.on-team { border-color: #22c55e; box-shadow: 0 0 0 3px rgba(34,197,94,.25); }
 
-.creature-card img { width: 72px; height: 72px; object-fit: contain; image-rendering: pixelated; }
+.creature-card img { width: 68px; height: 68px; object-fit: contain; image-rendering: pixelated; }
 .card-name { font-family: var(--pixel-font); font-size: 0.5rem; line-height: 1.4; }
 .card-stats { font-size: 0.65rem; color: var(--text-dim); }
 
 /* Select preview panel */
 .select-footer {
-  width: 100%; display: flex; flex-direction: column; align-items: center; gap: 12px;
+  width: 100%; display: flex; justify-content: center; gap: 12px;
   position: sticky; bottom: 0; background: var(--bg); padding: 12px 0 4px;
   border-top: 1px solid var(--border); margin-top: 4px;
 }
 
 #select-preview {
-  display: flex; align-items: center; gap: 16px;
+  display: flex; flex-direction: column; gap: 10px;
   background: var(--surface); border: 1px solid var(--border);
-  border-radius: 10px; padding: 12px 16px; width: 100%; max-width: 520px;
+  border-radius: 10px; padding: 12px 14px; width: 260px; flex-shrink: 0; align-self: flex-start;
+  position: sticky; top: 8px;
 }
 #select-preview.hidden { display: none; }
-#select-preview img { width: 80px; height: 80px; object-fit: contain; image-rendering: pixelated; flex-shrink: 0; }
-.preview-info { flex: 1; display: flex; flex-direction: column; gap: 4px; }
-.preview-info strong { font-size: 1rem; }
+#select-preview > img { width: 100px; height: 100px; object-fit: contain; image-rendering: pixelated; align-self: center; }
+.preview-info { display: flex; flex-direction: column; gap: 4px; }
+.preview-info strong { font-size: 0.9rem; }
 .preview-stats { font-size: 0.75rem; color: var(--text-dim); }
 .preview-desc  { font-size: 0.75rem; color: var(--text-dim); font-style: italic; }
 .preview-moves { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 2px; }
@@ -378,3 +407,44 @@ h2 {
   .battle-field    { min-height: 200px; }
   .creature-grid   { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
 }
+
+/* ── Team indicators in battle ───────────────────────────────────────────── */
+.team-indicator { display: flex; gap: 5px; margin-top: 4px; }
+.team-dot {
+  width: 12px; height: 12px; border-radius: 50%;
+  border: 1px solid rgba(255,255,255,.3);
+}
+.team-dot.active { background: #4ade80; border-color: #22c55e; }
+.team-dot.alive  { background: #6b7280; }
+.team-dot.fainted{ background: #374151; border-color: #4b5563; }
+
+/* ── Switch button ───────────────────────────────────────────────────────── */
+.btn-switch {
+  margin: 4px 12px 0; width: calc(100% - 24px);
+  font-size: 0.6rem; padding: 8px;
+}
+
+/* ── Switch panel ────────────────────────────────────────────────────────── */
+.switch-panel {
+  background: rgba(0,0,0,.85); border-top: 1px solid var(--border);
+  padding: 12px; display: flex; flex-direction: column; gap: 8px;
+}
+.switch-panel.hidden { display: none; }
+.switch-title { font-family: var(--pixel-font); font-size: 0.55rem; color: var(--text-dim); margin: 0; }
+.switch-forced-msg {
+  font-family: var(--pixel-font); font-size: 0.55rem;
+  color: #f87171; margin: 0;
+}
+.switch-forced-msg.hidden { display: none; }
+.switch-options { display: flex; gap: 8px; flex-wrap: wrap; }
+.switch-option-btn {
+  flex: 1; min-width: 110px; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  padding: 8px; cursor: pointer; color: var(--text);
+  transition: border-color 0.15s, transform 0.1s;
+}
+.switch-option-btn:hover:not(:disabled) { border-color: var(--blue); transform: scale(1.03); }
+.switch-option-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.switch-option-btn img { width: 52px; height: 52px; object-fit: contain; image-rendering: pixelated; }
+.switch-name { font-family: var(--pixel-font); font-size: 0.45rem; }
+.switch-hp   { font-size: 0.62rem; color: var(--text-dim); }
