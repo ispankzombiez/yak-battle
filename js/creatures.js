@@ -57,6 +57,7 @@ const CREATURES = [
     type: 'Ground',
     hp: 80, atk: 82, def: 80, spd: 52,
     abilities: ['Sturdy', 'Rough Skin'],
+    movesPool: ['Earthquake','High Horsepower','Bulldoze','Rock Slide','Stone Edge','Body Slam','Swords Dance'],
     desc: 'A burrowing armadillo that shakes the earth beneath its foes.',
     moves: [
       { name: 'Sand Slash',    type: 'Ground', power: 55, pp: 20 },
@@ -72,6 +73,7 @@ const CREATURES = [
     type: 'Flying',
     hp: 62, atk: 78, def: 52, spd: 105,
     abilities: ['Hustle', 'Serene Grace'],
+    movesPool: ['Hurricane','Aerial Ace','Air Slash','Brave Bird','Wing Attack','Quick Attack','Bounce'],
     desc: 'A quick-winged creature with razor-sharp talons.',
     moves: [
       { name: 'Peck',          type: 'Normal', power: 35, pp: 35 },
@@ -87,6 +89,7 @@ const CREATURES = [
     type: 'Bug',
     hp: 68, atk: 72, def: 65, spd: 78,
     abilities: ['Swarm', 'Compound Eyes'],
+    movesPool: ['X-Scissor','Bug Buzz','Megahorn','Lunge','Poison Jab','String Shot','U-turn'],
     desc: 'A sturdy insect that fights with crunching mandibles.',
     moves: [
       { name: 'Tackle',        type: 'Normal', power: 40, pp: 35 },
@@ -102,6 +105,7 @@ const CREATURES = [
     type: 'Normal',
     hp: 62, atk: 68, def: 48, spd: 115,
     abilities: ['Serene Grace', 'Natural Cure'],
+    movesPool: ['Extreme Speed','Body Slam','Double-Edge','Headbutt','High Jump Kick','Bounce','Work Up'],
     desc: 'Blindingly fast — strikes before opponents can react.',
     moves: [
       { name: 'Quick Attack',  type: 'Normal', power: 40, pp: 30, priority: 1 },
@@ -117,6 +121,7 @@ const CREATURES = [
     type: 'Fire',
     hp: 102, atk: 82, def: 80, spd: 42,
     abilities: ['Blaze', 'Flash Fire'],
+    movesPool: ['Flamethrower','Fire Blast','Flare Blitz','Lava Plume','Heat Wave','Earthquake','Will-O-Wisp'],
     desc: 'A blazing bull whose horns glow white-hot in battle.',
     moves: [
       { name: 'Fire Breath',   type: 'Fire',   power: 55, pp: 20 },
@@ -132,6 +137,7 @@ const CREATURES = [
     type: 'Dragon',
     hp: 78, atk: 92, def: 65, spd: 80,
     abilities: ['Moxie', 'Multiscale'],
+    movesPool: ['Dragon Claw','Dragon Hammer','Dragon Rush','Outrage','Draco Meteor','Dragon Dance','Crunch'],
     desc: 'An ancient dragon whose raw power has outlasted civilisations.',
     moves: [
       { name: 'Dragon Rage',   type: 'Dragon', power: 60, pp: 20 },
@@ -147,6 +153,7 @@ const CREATURES = [
     type: 'Fairy',
     hp: 92, atk: 100, def: 88, spd: 112,
     abilities: ['Adaptability', 'Intimidate'],
+    movesPool: ['Moonblast','Play Rough','Dazzling Gleam','Draining Kiss','Spirit Break','Charm','Psychic'],
     desc: 'A mythical fox spirit whose charm can stop dragons in their tracks.',
     moves: [
       { name: 'Fairy Wind',    type: 'Fairy',  power: 40, pp: 30 },
@@ -162,6 +169,7 @@ const CREATURES = [
     type: 'Dark',
     hp: 92, atk: 86, def: 75, spd: 58,
     abilities: ['Moxie', 'Guts'],
+    movesPool: ['Crunch','Night Slash','Dark Pulse','Sucker Punch','Throat Chop','Snarl','Knock Off'],
     desc: 'Looks harmless. Strikes from the shadows without warning.',
     moves: [
       { name: 'Bite',          type: 'Dark',   power: 60, pp: 25 },
@@ -177,6 +185,7 @@ const CREATURES = [
     type: 'Ice',
     hp: 74, atk: 80, def: 72, spd: 72,
     abilities: ['Thick Fat', 'Speed Boost'],
+    movesPool: ['Ice Beam','Blizzard','Ice Punch','Icicle Crash','Ice Shard','Icy Wind','Freeze-Dry'],
     desc: 'A creature of the frozen tundra. Strikes first with shards of ice.',
     moves: [
       { name: 'Ice Shard',     type: 'Ice',    power: 40, pp: 30, priority: 1 },
@@ -192,6 +201,7 @@ const CREATURES = [
     type: 'Fighting',
     hp: 96, atk: 88, def: 70, spd: 55,
     abilities: ['Guts', 'Hustle'],
+    movesPool: ['Close Combat','High Jump Kick','Mach Punch','Drain Punch','Superpower','Bulk Up','Body Slam'],
     desc: 'Trains day and night. Its short-range punches hit like freight trains.',
     moves: [
       { name: 'Mach Punch',    type: 'Fighting', power: 40, pp: 30, priority: 1 },
@@ -207,6 +217,7 @@ const CREATURES = [
     type: 'Grass',
     hp: 70, atk: 75, def: 70, spd: 65,
     abilities: ['Overgrow', 'Regenerator'],
+    movesPool: ['Energy Ball','Leaf Blade','Giga Drain','Power Whip','Solar Beam','Sleep Powder','Spore'],
     desc: 'A sprout with a fierce attitude and draining vines.',
     moves: [
       { name: 'Vine Whip',     type: 'Grass',  power: 45, pp: 25 },
@@ -222,6 +233,7 @@ const CREATURES = [
     type: 'Water',
     hp: 80, atk: 76, def: 65, spd: 88,
     abilities: ['Torrent', 'Poison Point'],
+    movesPool: ['Surf','Hydro Pump','Scald','Aqua Tail','Aqua Jet','Poison Jab','Acid Spray'],
     desc: 'Odd but effective. Uses a venomous spur to surprise foes.',
     moves: [
       { name: 'Bubble Beam',   type: 'Water',  power: 65, pp: 20 },
@@ -237,6 +249,7 @@ const CREATURES = [
     type: 'Rock',
     hp: 105, atk: 65, def: 125, spd: 28,
     abilities: ['Shell Armor', 'Sturdy'],
+    movesPool: ['Stone Edge','Rock Slide','Ancient Power','Head Smash','Power Gem','Rock Tomb','Rock Polish'],
     desc: 'An ancient fortress. Its shell can outlast most attacks.',
     moves: [
       { name: 'Rock Throw',    type: 'Rock',   power: 50, pp: 15 },
@@ -252,6 +265,7 @@ const CREATURES = [
     type: 'Grass',
     hp: 90, atk: 100, def: 68, spd: 28,
     abilities: ['Regenerator', 'Thick Fat'],
+    movesPool: ['Power Whip','Leaf Storm','Giga Drain','Energy Ball','Body Slam','Bulk Up','Swords Dance'],
     desc: 'Moves at a glacial pace, but its vine strikes hit before you realise.',
     moves: [
       { name: 'Vine Wrap',     type: 'Grass',  power: 50, pp: 25 },
@@ -267,6 +281,7 @@ const CREATURES = [
     type: 'Poison',
     hp: 68, atk: 88, def: 55, spd: 105,
     abilities: ['Intimidate', 'Shed Skin'],
+    movesPool: ['Poison Jab','Sludge Bomb','Gunk Shot','Cross Poison','Coil','Toxic','Venoshock'],
     desc: 'Strikes before the enemy notices. Venom lingers.',
     moves: [
       { name: 'Poison Sting',  type: 'Poison', power: 20, pp: 35, effect: { type: 'poison',   chance: 0.30 } },
@@ -282,6 +297,7 @@ const CREATURES = [
     type: 'Bug',
     hp: 64, atk: 82, def: 60, spd: 92,
     abilities: ['Compound Eyes', 'Poison Point'],
+    movesPool: ['X-Scissor','Bug Buzz','Attack Order','Lunge','Poison Jab','Acid Spray','String Shot'],
     desc: 'Weaves webs to slow foes, then finishes them off.',
     moves: [
       { name: 'Bug Bite',      type: 'Bug',    power: 60, pp: 20 },
@@ -298,6 +314,7 @@ const CREATURES = [
     type: 'Water',
     hp: 75, atk: 85, def: 58, spd: 90,
     abilities: ['Adaptability', 'Water Absorb'],
+    movesPool: ['Surf','Hydro Pump','Liquidation','Aqua Tail','Scald','Aqua Jet','Ice Beam'],
     desc: 'Fires ink to blind opponents, then tears them apart.',
     moves: [
       { name: 'Ink Blast',     type: 'Water',  power: 65, pp: 20 },
@@ -313,6 +330,7 @@ const CREATURES = [
     type: 'Normal',
     hp: 64, atk: 88, def: 48, spd: 118,
     abilities: ['Hustle', 'Moxie'],
+    movesPool: ['Extreme Speed','Quick Attack','Double-Edge','Body Slam','Last Resort','Swords Dance','Work Up'],
     desc: 'The fastest creature in the roster. Rarely takes a hit.',
     moves: [
       { name: 'Quick Attack',  type: 'Normal', power: 40, pp: 30, priority: 1 },

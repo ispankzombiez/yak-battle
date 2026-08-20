@@ -60,8 +60,11 @@ function _calcDamage(atk, move, def) {
   const base = (move.power * (atkVal / 100)) * (100 / (100 + defVal));
   const roll = 0.85 + Math.random() * 0.15;
 
-  let crit = Math.random() < 0.0625;
+  let crit = Math.random() < (move.highCrit ? 0.25 : 0.0625);
   if (def.ability === 'Shell Armor') crit = false;
+
+  // Facade: doubles power when attacker is statused
+  const facadeMult = (move.facade && atk.status) ? 2 : 1;
 
   // Attacker offensive multipliers
   let mult = 1;
@@ -70,7 +73,7 @@ function _calcDamage(atk, move, def) {
   if (pinchMap[atk.ability] === move.type && atk.currentHp <= atk.maxHp * 0.33) mult *= 1.5;
   if (atk.ability === 'Flash Fire' && atk.flashFireActive && move.type === 'Fire') mult *= 1.5;
 
-  let dmg = Math.max(1, Math.floor(base * effectiveness * mult * roll * (crit ? 1.5 : 1)));
+  let dmg = Math.max(1, Math.floor(base * effectiveness * facadeMult * mult * roll * (crit ? 1.5 : 1)));
 
   // Defender Multiscale: halve when at full HP
   if (def.ability === 'Multiscale' && def.currentHp === def.maxHp) dmg = Math.max(1, Math.floor(dmg * 0.5));
@@ -155,7 +158,29 @@ function resolveTurn(hostTeam, guestTeam, hostActiveIdx, guestActiveIdx, hostAct
 
       if (!move || def.currentHp <= 0) continue;
       if (isH ? hostStunned : guestStunned) { events.push({ type: 'paralyzed', target: side }); continue; }
-      if (flinched[side])                   { events.push({ type: 'flinched',  target: side }); continue; }
+
+      // Freeze: 20% chance to thaw and attack; otherwise stuck
+      if (atk.status === 'freeze') {
+        if (Math.random() < 0.20) {
+          atk.status = null;
+          events.push({ type: 'status-cured', target: side, reason: 'thawed' });
+        } else {
+          events.push({ type: 'cant-move', target: side, reason: 'frozen' });
+          continue;
+        }
+      }
+      // Sleep: 33% chance to wake and attack; otherwise stuck
+      if (atk.status === 'sleep') {
+        if (Math.random() < 0.33) {
+          atk.status = null;
+          events.push({ type: 'status-cured', target: side, reason: 'woke-up' });
+        } else {
+          events.push({ type: 'cant-move', target: side, reason: 'sleeping' });
+          continue;
+        }
+      }
+
+      if (flinched[side]) { events.push({ type: 'flinched', target: side }); continue; }
 
       // Accuracy check with ability modifiers
       let accuracy = move.accuracy ?? 1;
@@ -179,6 +204,12 @@ function resolveTurn(hostTeam, guestTeam, hostActiveIdx, guestActiveIdx, hostAct
           events.push({ type: 'ability-absorb', target: defSide, moveName: move.name, ability: 'Water Absorb', healAmount: healAmt, defName: def.name });
           continue;
         }
+        // Fire moves thaw a frozen defender (Flash Fire already handled above)
+        if (move.type === 'Fire' && def.status === 'freeze') {
+          def.status = null;
+          events.push({ type: 'status-cured', target: defSide, reason: 'thawed' });
+        }
+
         if (def.ability === 'Levitate' && move.type === 'Ground') {
           events.push({ type: 'no-effect', attacker: side, moveName: move.name });
           continue;
@@ -186,10 +217,28 @@ function resolveTurn(hostTeam, guestTeam, hostActiveIdx, guestActiveIdx, hostAct
       }
 
       if (move.power === 0) {
-        if (move.effect?.type === 'heal') {
-          const amt = Math.floor(atk.maxHp * move.effect.amount);
+        const eff = move.effect;
+        if (eff?.type === 'heal') {
+          const amt = Math.floor(atk.maxHp * eff.amount);
           atk.currentHp = Math.min(atk.maxHp, atk.currentHp + amt);
           events.push({ type: 'heal', target: side, amount: amt, moveName: move.name });
+        } else if (eff?.type === 'stat-self') {
+          if (Math.random() < (eff.chance ?? 1.0)) {
+            for (const { stat, change } of (eff.stages ?? [])) {
+              atk.stages[stat] = Math.min(6, Math.max(-6, (atk.stages[stat] ?? 0) + change));
+              events.push({ type: 'stat-change', target: side, stat, change, byName: atk.name });
+            }
+          }
+        } else if (eff?.type === 'stat-opp') {
+          for (const { stat, change } of (eff.stages ?? [])) {
+            def.stages[stat] = Math.min(6, Math.max(-6, (def.stages[stat] ?? 0) + change));
+            events.push({ type: 'stat-change', target: defSide, stat, change, byName: atk.name });
+          }
+        } else if (eff && !def.status && ['burn','poison','paralyze','freeze','sleep'].includes(eff.type)) {
+          if (Math.random() < (eff.chance ?? 1.0)) {
+            def.status = eff.type;
+            events.push({ type: 'status-applied', target: defSide, status: eff.type });
+          }
         }
         continue;
       }
@@ -214,6 +263,14 @@ function resolveTurn(hostTeam, guestTeam, hostActiveIdx, guestActiveIdx, hostAct
         events.push({ type: 'drain', target: side, amount: amt });
       }
 
+      // Recoil
+      if (move.recoil && atk.currentHp > 0) {
+        const rAmt = Math.max(1, Math.floor(damage * move.recoil));
+        atk.currentHp = Math.max(0, atk.currentHp - rAmt);
+        events.push({ type: 'recoil', target: side, amount: rAmt });
+        if (atk.currentHp <= 0) events.push({ type: 'fainted', target: side, teamIdx: isH ? hIdx : gIdx });
+      }
+
       // Flinch (Serene Grace doubles chance)
       const flinchChance = (move.effect?.type === 'flinch')
         ? (move.effect.chance ?? 0) * (atk.ability === 'Serene Grace' ? 2 : 1)
@@ -222,7 +279,7 @@ function resolveTurn(hostTeam, guestTeam, hostActiveIdx, guestActiveIdx, hostAct
 
       // Status from move (Serene Grace doubles chance)
       const eff = move.effect;
-      if (eff && (eff.type === 'burn' || eff.type === 'poison' || eff.type === 'paralyze') && !def.status) {
+      if (eff && (eff.type === 'burn' || eff.type === 'poison' || eff.type === 'paralyze' || eff.type === 'freeze' || eff.type === 'sleep') && !def.status) {
         const chance = (eff.chance ?? 0) * (atk.ability === 'Serene Grace' ? 2 : 1);
         if (Math.random() < chance) {
           def.status = eff.type;
@@ -230,8 +287,20 @@ function resolveTurn(hostTeam, guestTeam, hostActiveIdx, guestActiveIdx, hostAct
         }
       }
 
+      // On-hit stat effects (statEffect array on damaging moves)
+      if (move.statEffect && def.currentHp > 0) {
+        for (const { target, stat, change, chance = 1.0 } of move.statEffect) {
+          if (Math.random() < chance) {
+            const who  = target === 'self' ? atk  : def;
+            const wSide = target === 'self' ? side : defSide;
+            who.stages[stat] = Math.min(6, Math.max(-6, (who.stages[stat] ?? 0) + change));
+            events.push({ type: 'stat-change', target: wSide, stat, change, byName: target === 'self' ? atk.name : null });
+          }
+        }
+      }
+
       // Contact retaliation abilities (only if both alive)
-      if (def.currentHp > 0 && atk.currentHp > 0 && CONTACT_MOVES.has(move.name)) {
+      if (def.currentHp > 0 && atk.currentHp > 0 && _isContact(move)) {
         if (def.ability === 'Rough Skin') {
           const rsDmg = Math.max(1, Math.floor(atk.maxHp * 0.125));
           atk.currentHp = Math.max(0, atk.currentHp - rsDmg);

@@ -16,10 +16,11 @@ const S = {
   turnActive:         false,
   myForcedSwitch:     false,
   oppForcedSwitch:    false,
-  _mySelectedTeam:    [],    // [{id, variant, ability}, ...] built during select screen
+  _mySelectedTeam:    [],    // [{id, variant, ability, moves}, ...] built during select screen
   _pendingPreviewId:  null,
   _pendingVariant:    null,
   _pendingAbility:    null,
+  _pendingMoves:      [],
   _oppTeamData:       null,  // [{id, variant, ability}, ...] from opponent's creature-ready
 };
 
@@ -225,6 +226,7 @@ function enterCreatureSelect() {
   S._pendingPreviewId = null;
   S._pendingVariant   = null;
   S._pendingAbility   = null;
+  S._pendingMoves     = [];
   showScreen('select');
   document.getElementById('opp-select-status').textContent = 'Opponent is selecting…';
   document.getElementById('btn-confirm-select').disabled = true;
@@ -280,7 +282,8 @@ function _addToTeam() {
   if (S._mySelectedTeam.some(x => x.id === S._pendingPreviewId)) return;
   const _c = CREATURES.find(x => x.id === S._pendingPreviewId);
   const ability = S._pendingAbility ?? (_c?.abilities?.[0] ?? null);
-  S._mySelectedTeam.push({ id: S._pendingPreviewId, variant: S._pendingVariant, ability });
+  if (_c?.movesPool?.length && S._pendingMoves.length !== 4) return;
+  S._mySelectedTeam.push({ id: S._pendingPreviewId, variant: S._pendingVariant, ability, moves: [...S._pendingMoves] });
   _renderTeamSlots();
   _updateConfirmBtn();
   _refreshCardBadges();
@@ -316,11 +319,12 @@ function _selectCard(id) {
 
   const c = CREATURES.find(x => x.id === id);
 
-  // Reset variant/ability only when switching to a new creature
+  // Reset variant/ability/moves only when switching to a new creature
   if (S._pendingPreviewId !== id) {
     const teamEntry = S._mySelectedTeam.find(x => x.id === id);
     S._pendingVariant = teamEntry ? teamEntry.variant : c.sprite;
     S._pendingAbility = teamEntry ? teamEntry.ability : (c.abilities?.[0] ?? null);
+    S._pendingMoves   = teamEntry ? [...teamEntry.moves] : [];
   }
   S._pendingPreviewId = id;
 
@@ -345,7 +349,11 @@ function _selectCard(id) {
         </div>
       ` : ''}
       <div class="preview-moves">
-        ${c.moves.map(m => `<span class="move-pill" style="border-color:${getTypeColor(m.type)}">${esc(m.name)}</span>`).join('')}
+        ${(c.movesPool ?? []).slice(0, 4).map(mvName => {
+          const m = MOVE_POOL[mvName];
+          if (!m) return '';
+          return `<span class="move-pill" style="border-color:${getTypeColor(m.type)}">${esc(mvName)}</span>`;
+        }).join('')}
       </div>
       ${c.abilities?.length ? `
         <div class="ability-picker">
@@ -358,8 +366,47 @@ function _selectCard(id) {
           `).join('')}
         </div>
       ` : ''}
+      ${c.movesPool?.length ? `
+        <div class="move-picker-section">
+          <div class="move-picker-label">MOVES <span class="move-pick-count" id="mpc-count">${S._pendingMoves.length}/4</span></div>
+          <div class="move-picker-grid">
+            ${c.movesPool.map(moveName => {
+              const m = MOVE_POOL[moveName];
+              if (!m) return '';
+              const sel = S._pendingMoves.includes(moveName);
+              return `<button class="move-pick-btn${sel ? ' active' : ''}" data-move="${esc(moveName)}">
+                <span class="move-pick-name">${esc(moveName)}</span>
+                <span class="type-badge" style="background:${getTypeColor(m.type)}">${m.type}</span>
+                <span class="move-pick-power">${m.power > 0 ? 'PWR ' + m.power : 'STATUS'}</span>
+              </button>`;
+            }).join('')}
+          </div>
+        </div>
+      ` : ''}
     </div>
   `;
+
+  preview.querySelectorAll('.move-pick-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (S.myConfirmed) return;
+      const mv = btn.dataset.move;
+      const idx = S._pendingMoves.indexOf(mv);
+      if (idx >= 0) {
+        S._pendingMoves.splice(idx, 1);
+        btn.classList.remove('active');
+      } else if (S._pendingMoves.length < 4) {
+        S._pendingMoves.push(mv);
+        btn.classList.add('active');
+      }
+      const countEl = document.getElementById('mpc-count');
+      if (countEl) countEl.textContent = S._pendingMoves.length + '/4';
+      const teamIdx2 = S._mySelectedTeam.findIndex(x => x.id === id);
+      if (teamIdx2 >= 0) S._mySelectedTeam[teamIdx2].moves = [...S._pendingMoves];
+      const needMoves2 = !!(c.movesPool?.length);
+      addBtn.disabled = !onTeam && (teamFull || (needMoves2 && S._pendingMoves.length !== 4));
+      _updateConfirmBtn();
+    });
+  });
 
   preview.querySelectorAll('.ability-choice-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -390,8 +437,9 @@ function _selectCard(id) {
   const addBtn = document.createElement('button');
   addBtn.className   = 'btn btn-sm ' + (onTeam ? 'btn-danger' : 'btn-primary');
   addBtn.style.marginTop = '8px';
-  addBtn.textContent = onTeam ? '✕ REMOVE' : (teamFull ? 'TEAM FULL' : '＋ ADD TO TEAM');
-  addBtn.disabled    = !onTeam && teamFull;
+  addBtn.textContent = onTeam ? '\u2715 REMOVE' : (teamFull ? 'TEAM FULL' : '\uff0b ADD TO TEAM');
+  const needMoves = !!(c.movesPool?.length);
+  addBtn.disabled    = !onTeam && (teamFull || (needMoves && S._pendingMoves.length !== 4));
   addBtn.addEventListener('click', () => {
     if (onTeam) {
       _removeFromTeam(S._mySelectedTeam.findIndex(x => x.id === id));
@@ -444,11 +492,11 @@ function startBattle(msg) {
 
   S.myTeam  = myTeamData.map(entry => {
     const c = CREATURES.find(x => x.id === entry.id);
-    return buildBattleCreature(c, entry.variant || c.sprite, entry.ability);
+    return buildBattleCreature(c, entry.variant || c.sprite, entry.ability, entry.moves);
   });
   S.oppTeam = oppTeamData.map(entry => {
     const c = CREATURES.find(x => x.id === entry.id);
-    return buildBattleCreature(c, entry.variant || c.sprite, entry.ability);
+    return buildBattleCreature(c, entry.variant || c.sprite, entry.ability, entry.moves);
   });
 
   S.myActiveIdx        = 0;
@@ -753,6 +801,24 @@ function _showEvent(ev) {
       _log(`${name} flinched and couldn't move!`);
       break;
     }
+    case 'cant-move': {
+      const isMe = (ev.target === 'host') === S.isHost;
+      const name = isMe ? myActive.name : oppActive.name;
+      _log(ev.reason === 'frozen' ? `${name} is frozen solid and can't move!` : `${name} is fast asleep!`);
+      break;
+    }
+    case 'status-cured': {
+      const isMe = (ev.target === 'host') === S.isHost;
+      const name = isMe ? myActive.name : oppActive.name;
+      _log(ev.reason === 'thawed' ? `${name} thawed out!` : `${name} woke up!`);
+      break;
+    }
+    case 'recoil': {
+      const isMe = (ev.target === 'host') === S.isHost;
+      const name = isMe ? myActive.name : oppActive.name;
+      _log(`${name} was hurt by recoil! (${ev.amount} dmg)`);
+      break;
+    }
     case 'fainted': {
       const isMe = (ev.target === 'host') === S.isHost;
       const team = isMe ? S.myTeam : S.oppTeam;
@@ -767,7 +833,8 @@ function _showEvent(ev) {
       const name = ev.byName ?? (isMe ? myActive.name : oppActive.name);
       const labels = { atk: 'Attack', def: 'Defense', spd: 'Speed' };
       const dir = ev.change > 0 ? 'rose' : 'fell';
-      _log(`${name}'s <b>${labels[ev.stat] ?? ev.stat}</b> ${dir}! (${ev.ability})`);
+      const suffix = ev.ability ? ` (${ev.ability})` : '';
+      _log(`${name}'s <b>${labels[ev.stat] ?? ev.stat}</b> ${dir}!${suffix}`);
       break;
     }
     case 'ability-heal': {
@@ -870,7 +937,7 @@ function _setTypeBadge(id, type) {
 function _updateStatusBadge(prefix, status) {
   const el = document.getElementById(prefix + '-status');
   if (status) {
-    el.textContent = { burn: '🔥 BRN', poison: '☠ PSN', paralyze: '⚡ PAR' }[status] ?? status;
+    el.textContent = { burn: '🔥 BRN', poison: '☠ PSN', paralyze: '⚡ PAR', freeze: '❄ FRZ', sleep: '💤 SLP' }[status] ?? status;
     el.classList.remove('hidden');
   } else {
     el.classList.add('hidden');
