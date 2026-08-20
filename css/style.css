@@ -309,6 +309,32 @@ h2 {
 }
 .status-badge.hidden { display: none; }
 
+/* Ability badge in battle */
+.ability-badge {
+  display: inline-block; font-size: 0.55rem; padding: 2px 7px;
+  border-radius: 4px; background: rgba(99,102,241,.25); border: 1px solid rgba(99,102,241,.5);
+  color: #a5b4fc; letter-spacing: 0.03em;
+}
+.ability-badge.hidden { display: none; }
+
+/* Ability picker on select screen */
+.ability-picker {
+  display: flex; flex-direction: column; gap: 5px; margin-top: 6px;
+}
+.ability-picker-label {
+  font-family: var(--pixel-font); font-size: 0.5rem; color: var(--text-dim); letter-spacing: 0.05em;
+}
+.ability-choice-btn {
+  display: flex; flex-direction: column; gap: 2px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 7px;
+  padding: 6px 10px; cursor: pointer; text-align: left; color: var(--text);
+  transition: border-color 0.15s, background 0.15s;
+}
+.ability-choice-btn:hover:not(:disabled) { border-color: #818cf8; background: rgba(99,102,241,.1); }
+.ability-choice-btn.active { border-color: #818cf8; background: rgba(99,102,241,.18); }
+.ability-choice-name { font-family: var(--pixel-font); font-size: 0.5rem; font-weight: 700; color: #a5b4fc; }
+.ability-choice-desc { font-size: 0.68rem; color: var(--text-dim); }
+
 /* Sprites */
 .sprite-wrap { display: flex; justify-content: center; align-items: center; flex-shrink: 0; }
 .creature-sprite {

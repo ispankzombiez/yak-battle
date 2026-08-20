@@ -56,6 +56,7 @@ const CREATURES = [
     sprite: 'armadillo.webp',
     type: 'Ground',
     hp: 80, atk: 82, def: 80, spd: 52,
+    abilities: ['Sturdy', 'Rough Skin'],
     desc: 'A burrowing armadillo that shakes the earth beneath its foes.',
     moves: [
       { name: 'Sand Slash',    type: 'Ground', power: 55, pp: 20 },
@@ -70,6 +71,7 @@ const CREATURES = [
     sprite: 'bird.webp',
     type: 'Flying',
     hp: 62, atk: 78, def: 52, spd: 105,
+    abilities: ['Hustle', 'Serene Grace'],
     desc: 'A quick-winged creature with razor-sharp talons.',
     moves: [
       { name: 'Peck',          type: 'Normal', power: 35, pp: 35 },
@@ -84,6 +86,7 @@ const CREATURES = [
     sprite: 'bug.webp',
     type: 'Bug',
     hp: 68, atk: 72, def: 65, spd: 78,
+    abilities: ['Swarm', 'Compound Eyes'],
     desc: 'A sturdy insect that fights with crunching mandibles.',
     moves: [
       { name: 'Tackle',        type: 'Normal', power: 40, pp: 35 },
@@ -98,6 +101,7 @@ const CREATURES = [
     sprite: 'bunny.webp',
     type: 'Normal',
     hp: 62, atk: 68, def: 48, spd: 115,
+    abilities: ['Serene Grace', 'Natural Cure'],
     desc: 'Blindingly fast — strikes before opponents can react.',
     moves: [
       { name: 'Quick Attack',  type: 'Normal', power: 40, pp: 30, priority: 1 },
@@ -112,6 +116,7 @@ const CREATURES = [
     sprite: 'cow.webp',
     type: 'Fire',
     hp: 102, atk: 82, def: 80, spd: 42,
+    abilities: ['Blaze', 'Flash Fire'],
     desc: 'A blazing bull whose horns glow white-hot in battle.',
     moves: [
       { name: 'Fire Breath',   type: 'Fire',   power: 55, pp: 20 },
@@ -126,6 +131,7 @@ const CREATURES = [
     sprite: 'dino.webp',
     type: 'Dragon',
     hp: 78, atk: 92, def: 65, spd: 80,
+    abilities: ['Moxie', 'Multiscale'],
     desc: 'An ancient dragon whose raw power has outlasted civilisations.',
     moves: [
       { name: 'Dragon Rage',   type: 'Dragon', power: 60, pp: 20 },
@@ -140,6 +146,7 @@ const CREATURES = [
     sprite: 'legendary.webp',
     type: 'Fairy',
     hp: 92, atk: 100, def: 88, spd: 112,
+    abilities: ['Adaptability', 'Intimidate'],
     desc: 'A mythical fox spirit whose charm can stop dragons in their tracks.',
     moves: [
       { name: 'Fairy Wind',    type: 'Fairy',  power: 40, pp: 30 },
@@ -154,6 +161,7 @@ const CREATURES = [
     sprite: 'panda.webp',
     type: 'Dark',
     hp: 92, atk: 86, def: 75, spd: 58,
+    abilities: ['Moxie', 'Guts'],
     desc: 'Looks harmless. Strikes from the shadows without warning.',
     moves: [
       { name: 'Bite',          type: 'Dark',   power: 60, pp: 25 },
@@ -168,6 +176,7 @@ const CREATURES = [
     sprite: 'penguin.webp',
     type: 'Ice',
     hp: 74, atk: 80, def: 72, spd: 72,
+    abilities: ['Thick Fat', 'Speed Boost'],
     desc: 'A creature of the frozen tundra. Strikes first with shards of ice.',
     moves: [
       { name: 'Ice Shard',     type: 'Ice',    power: 40, pp: 30, priority: 1 },
@@ -182,6 +191,7 @@ const CREATURES = [
     sprite: 'pig.webp',
     type: 'Fighting',
     hp: 96, atk: 88, def: 70, spd: 55,
+    abilities: ['Guts', 'Hustle'],
     desc: 'Trains day and night. Its short-range punches hit like freight trains.',
     moves: [
       { name: 'Mach Punch',    type: 'Fighting', power: 40, pp: 30, priority: 1 },
@@ -196,6 +206,7 @@ const CREATURES = [
     sprite: 'plant.webp',
     type: 'Grass',
     hp: 70, atk: 75, def: 70, spd: 65,
+    abilities: ['Overgrow', 'Regenerator'],
     desc: 'A sprout with a fierce attitude and draining vines.',
     moves: [
       { name: 'Vine Whip',     type: 'Grass',  power: 45, pp: 25 },
@@ -210,6 +221,7 @@ const CREATURES = [
     sprite: 'platapus.webp',
     type: 'Water',
     hp: 80, atk: 76, def: 65, spd: 88,
+    abilities: ['Torrent', 'Poison Point'],
     desc: 'Odd but effective. Uses a venomous spur to surprise foes.',
     moves: [
       { name: 'Bubble Beam',   type: 'Water',  power: 65, pp: 20 },
@@ -224,6 +236,7 @@ const CREATURES = [
     sprite: 'rock-turtle.webp',
     type: 'Rock',
     hp: 105, atk: 65, def: 125, spd: 28,
+    abilities: ['Shell Armor', 'Sturdy'],
     desc: 'An ancient fortress. Its shell can outlast most attacks.',
     moves: [
       { name: 'Rock Throw',    type: 'Rock',   power: 50, pp: 15 },
@@ -238,6 +251,7 @@ const CREATURES = [
     sprite: 'sloth.webp',
     type: 'Grass',
     hp: 90, atk: 100, def: 68, spd: 28,
+    abilities: ['Regenerator', 'Thick Fat'],
     desc: 'Moves at a glacial pace, but its vine strikes hit before you realise.',
     moves: [
       { name: 'Vine Wrap',     type: 'Grass',  power: 50, pp: 25 },
@@ -252,6 +266,7 @@ const CREATURES = [
     sprite: 'snake.webp',
     type: 'Poison',
     hp: 68, atk: 88, def: 55, spd: 105,
+    abilities: ['Intimidate', 'Shed Skin'],
     desc: 'Strikes before the enemy notices. Venom lingers.',
     moves: [
       { name: 'Poison Sting',  type: 'Poison', power: 20, pp: 35, effect: { type: 'poison',   chance: 0.30 } },
@@ -266,6 +281,7 @@ const CREATURES = [
     sprite: 'spider.webp',
     type: 'Bug',
     hp: 64, atk: 82, def: 60, spd: 92,
+    abilities: ['Compound Eyes', 'Poison Point'],
     desc: 'Weaves webs to slow foes, then finishes them off.',
     moves: [
       { name: 'Bug Bite',      type: 'Bug',    power: 60, pp: 20 },
@@ -278,9 +294,10 @@ const CREATURES = [
     id: 'squid',
     name: 'Squid',
     sprite: 'squid.webp',
-    variants: ['squid.webp', 'shiny-squid.webp'], // shiny is a colour variant
+    variants: ['squid.webp', 'shiny-squid.webp'],
     type: 'Water',
     hp: 75, atk: 85, def: 58, spd: 90,
+    abilities: ['Adaptability', 'Water Absorb'],
     desc: 'Fires ink to blind opponents, then tears them apart.',
     moves: [
       { name: 'Ink Blast',     type: 'Water',  power: 65, pp: 20 },
@@ -295,6 +312,7 @@ const CREATURES = [
     sprite: 'weasle.webp',
     type: 'Normal',
     hp: 64, atk: 88, def: 48, spd: 118,
+    abilities: ['Hustle', 'Moxie'],
     desc: 'The fastest creature in the roster. Rarely takes a hit.',
     moves: [
       { name: 'Quick Attack',  type: 'Normal', power: 40, pp: 30, priority: 1 },

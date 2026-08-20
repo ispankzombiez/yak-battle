@@ -16,10 +16,11 @@ const S = {
   turnActive:         false,
   myForcedSwitch:     false,
   oppForcedSwitch:    false,
-  _mySelectedTeam:    [],    // [{id, variant}, ...] built during select screen
+  _mySelectedTeam:    [],    // [{id, variant, ability}, ...] built during select screen
   _pendingPreviewId:  null,
   _pendingVariant:    null,
-  _oppTeamData:       null,  // [{id, variant}, ...] from opponent's creature-ready
+  _pendingAbility:    null,
+  _oppTeamData:       null,  // [{id, variant, ability}, ...] from opponent's creature-ready
 };
 
 // ── Screen management ─────────────────────────────────────────────────────────
@@ -90,6 +91,14 @@ function handleMessage(msg) {
       // Opponent chose a new creature after their mon fainted
       S.oppActiveIdx    = msg.targetIdx;
       S.oppForcedSwitch = false;
+      // Apply Intimidate from opponent's incoming creature onto my active
+      const incomingOpp = S.oppTeam[msg.targetIdx];
+      if (incomingOpp.ability === 'Intimidate') {
+        const myActive = S.myTeam[S.myActiveIdx];
+        if (!myActive.stages) myActive.stages = { atk:0, def:0, spd:0 };
+        myActive.stages.atk = Math.max(-6, (myActive.stages.atk ?? 0) - 1);
+        _log(`${incomingOpp.name}'s <b>Intimidate</b> lowered ${myActive.name}'s Attack!`);
+      }
       _renderActiveCreatures();
       _renderTeamIndicators();
       _log(`${S.opponentName} sent out <b>${esc(S.oppTeam[msg.targetIdx].name)}</b>!`);
@@ -215,6 +224,7 @@ function enterCreatureSelect() {
   S._mySelectedTeam   = [];
   S._pendingPreviewId = null;
   S._pendingVariant   = null;
+  S._pendingAbility   = null;
   showScreen('select');
   document.getElementById('opp-select-status').textContent = 'Opponent is selecting…';
   document.getElementById('btn-confirm-select').disabled = true;
@@ -268,7 +278,9 @@ function _addToTeam() {
   if (S._mySelectedTeam.length >= 3) return;
   if (!S._pendingPreviewId) return;
   if (S._mySelectedTeam.some(x => x.id === S._pendingPreviewId)) return;
-  S._mySelectedTeam.push({ id: S._pendingPreviewId, variant: S._pendingVariant });
+  const _c = CREATURES.find(x => x.id === S._pendingPreviewId);
+  const ability = S._pendingAbility ?? (_c?.abilities?.[0] ?? null);
+  S._mySelectedTeam.push({ id: S._pendingPreviewId, variant: S._pendingVariant, ability });
   _renderTeamSlots();
   _updateConfirmBtn();
   _refreshCardBadges();
@@ -304,10 +316,11 @@ function _selectCard(id) {
 
   const c = CREATURES.find(x => x.id === id);
 
-  // Reset variant only when switching to a new creature
+  // Reset variant/ability only when switching to a new creature
   if (S._pendingPreviewId !== id) {
     const teamEntry = S._mySelectedTeam.find(x => x.id === id);
     S._pendingVariant = teamEntry ? teamEntry.variant : c.sprite;
+    S._pendingAbility = teamEntry ? teamEntry.ability : (c.abilities?.[0] ?? null);
   }
   S._pendingPreviewId = id;
 
@@ -334,8 +347,31 @@ function _selectCard(id) {
       <div class="preview-moves">
         ${c.moves.map(m => `<span class="move-pill" style="border-color:${getTypeColor(m.type)}">${esc(m.name)}</span>`).join('')}
       </div>
+      ${c.abilities?.length ? `
+        <div class="ability-picker">
+          <span class="ability-picker-label">ABILITY</span>
+          ${c.abilities.map(ab => `
+            <button class="ability-choice-btn${ab === (S._mySelectedTeam.find(x=>x.id===id)?.ability ?? c.abilities[0]) ? ' active' : ''}" data-ability="${esc(ab)}">
+              <span class="ability-choice-name">${esc(ab)}</span>
+              <span class="ability-choice-desc">${esc(ABILITIES[ab]?.desc ?? '')}</span>
+            </button>
+          `).join('')}
+        </div>
+      ` : ''}
     </div>
   `;
+
+  preview.querySelectorAll('.ability-choice-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (S.myConfirmed) return;
+      const ab = btn.dataset.ability;
+      S._pendingAbility = ab;
+      preview.querySelectorAll('.ability-choice-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const teamIdx = S._mySelectedTeam.findIndex(x => x.id === id);
+      if (teamIdx >= 0) S._mySelectedTeam[teamIdx].ability = ab;
+    });
+  });
 
   preview.querySelectorAll('.variant-thumb').forEach(img => {
     img.addEventListener('click', () => {
@@ -408,11 +444,11 @@ function startBattle(msg) {
 
   S.myTeam  = myTeamData.map(entry => {
     const c = CREATURES.find(x => x.id === entry.id);
-    return buildBattleCreature(c, entry.variant || c.sprite);
+    return buildBattleCreature(c, entry.variant || c.sprite, entry.ability);
   });
   S.oppTeam = oppTeamData.map(entry => {
     const c = CREATURES.find(x => x.id === entry.id);
-    return buildBattleCreature(c, entry.variant || c.sprite);
+    return buildBattleCreature(c, entry.variant || c.sprite, entry.ability);
   });
 
   S.myActiveIdx        = 0;
@@ -447,6 +483,7 @@ function _renderActiveCreatures() {
   document.getElementById('opp-sprite').classList.remove('fainted');
   _updateHpBar('opp', opp.currentHp, opp.maxHp);
   _updateStatusBadge('opp', opp.status);
+  _updateAbilityBadge('opp', opp.ability);
 
   document.getElementById('my-creature-name').textContent = my.name;
   document.getElementById('my-trainer-name').textContent  = S.playerName;
@@ -455,6 +492,7 @@ function _renderActiveCreatures() {
   document.getElementById('my-sprite').classList.remove('fainted');
   _updateHpBar('my', my.currentHp, my.maxHp);
   _updateStatusBadge('my', my.status);
+  _updateAbilityBadge('my', my.ability);
 }
 
 function _renderMoveButtons() {
@@ -525,6 +563,16 @@ function _applyResult(result) {
   oppTeamHp.forEach((hp, i)     => { S.oppTeam[i].currentHp = hp; });
   myTeamStatus.forEach((st, i)  => { S.myTeam[i].status     = st; });
   oppTeamStatus.forEach((st, i) => { S.oppTeam[i].status    = st; });
+
+  // Apply stat stages and ability state returned by host
+  const myStages     = S.isHost ? result.hostTeamStages     : result.guestTeamStages;
+  const oppStages    = S.isHost ? result.guestTeamStages    : result.hostTeamStages;
+  const myAbilState  = S.isHost ? result.hostTeamAbilState  : result.guestTeamAbilState;
+  const oppAbilState = S.isHost ? result.guestTeamAbilState : result.hostTeamAbilState;
+  if (myStages)     myStages.forEach((s, i)     => { S.myTeam[i].stages = s; });
+  if (oppStages)    oppStages.forEach((s, i)    => { S.oppTeam[i].stages = s; });
+  if (myAbilState)  myAbilState.forEach((s, i)  => { Object.assign(S.myTeam[i],  s); });
+  if (oppAbilState) oppAbilState.forEach((s, i) => { Object.assign(S.oppTeam[i], s); });
 
   // Reflect voluntary switches that happened during the turn
   S.myActiveIdx  = S.isHost ? result.hostActiveIdx  : result.guestActiveIdx;
@@ -602,6 +650,14 @@ function _performSwitch(targetIdx, forced) {
   if (forced) {
     S.myActiveIdx    = targetIdx;
     S.myForcedSwitch = false;
+    // Apply Intimidate from incoming creature onto opponent's active
+    const incomingMy = S.myTeam[targetIdx];
+    if (incomingMy.ability === 'Intimidate') {
+      const oppActive = S.oppTeam[S.oppActiveIdx];
+      if (!oppActive.stages) oppActive.stages = { atk:0, def:0, spd:0 };
+      oppActive.stages.atk = Math.max(-6, (oppActive.stages.atk ?? 0) - 1);
+      _log(`${incomingMy.name}'s <b>Intimidate</b> lowered ${oppActive.name}'s Attack!`);
+    }
     netSend({ type: 'forced-switch', targetIdx });
     _renderActiveCreatures();
     _renderMoveButtons();
@@ -706,7 +762,50 @@ function _showEvent(ev) {
       document.getElementById(isMe ? 'my-sprite' : 'opp-sprite').classList.add('fainted');
       break;
     }
-  }
+    case 'stat-change': {
+      const isMe = (ev.target === 'host') === S.isHost;
+      const name = ev.byName ?? (isMe ? myActive.name : oppActive.name);
+      const labels = { atk: 'Attack', def: 'Defense', spd: 'Speed' };
+      const dir = ev.change > 0 ? 'rose' : 'fell';
+      _log(`${name}'s <b>${labels[ev.stat] ?? ev.stat}</b> ${dir}! (${ev.ability})`);
+      break;
+    }
+    case 'ability-heal': {
+      const isMe = (ev.target === 'host') === S.isHost;
+      const c = (ev.teamIdx != null ? (isMe ? S.myTeam : S.oppTeam)[ev.teamIdx] : null)
+              ?? (isMe ? myActive : oppActive);
+      _log(`${c.name} recovered <b>${ev.amount}</b> HP! (${ev.ability})`);
+      break;
+    }
+    case 'ability-cure': {
+      const isMe = (ev.target === 'host') === S.isHost;
+      const c = (ev.teamIdx != null ? (isMe ? S.myTeam : S.oppTeam)[ev.teamIdx] : null)
+              ?? (isMe ? myActive : oppActive);
+      _log(`${c.name}'s status was cured by <b>${ev.ability}</b>!`);
+      break;
+    }
+    case 'ability-absorb': {
+      const isMe = (ev.target === 'host') === S.isHost;
+      const name = isMe ? myActive.name : oppActive.name;
+      if (ev.healAmount) {
+        _log(`${name} absorbed ${esc(ev.moveName)} and recovered <b>${ev.healAmount}</b> HP! (${ev.ability})`);
+      } else {
+        _log(`${name}'s <b>${ev.ability}</b> absorbed ${esc(ev.moveName)}!`);
+      }
+      break;
+    }
+    case 'ability-triggered': {
+      const isMe = (ev.target === 'host') === S.isHost;
+      const name = isMe ? myActive.name : oppActive.name;
+      _log(`${name} held on with <b>${ev.ability}</b>!`);
+      break;
+    }
+    case 'contact-damage': {
+      const isMe = (ev.target === 'host') === S.isHost;
+      const name = isMe ? myActive.name : oppActive.name;
+      _log(`${name} was hurt by ${ev.defName}'s <b>${ev.ability}</b>! (${ev.amount} dmg)`);
+      break;
+    }
 }
 
 // ── Game-over screen ──────────────────────────────────────────────────────────
@@ -772,6 +871,17 @@ function _updateStatusBadge(prefix, status) {
   const el = document.getElementById(prefix + '-status');
   if (status) {
     el.textContent = { burn: '🔥 BRN', poison: '☠ PSN', paralyze: '⚡ PAR' }[status] ?? status;
+    el.classList.remove('hidden');
+  } else {
+    el.classList.add('hidden');
+  }
+}
+
+function _updateAbilityBadge(prefix, ability) {
+  const el = document.getElementById(prefix + '-ability');
+  if (!el) return;
+  if (ability) {
+    el.textContent = ability;
     el.classList.remove('hidden');
   } else {
     el.classList.add('hidden');
