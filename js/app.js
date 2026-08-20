@@ -46,6 +46,17 @@ function playerName() {
   return document.getElementById('player-name').value.trim() || 'Trainer';
 }
 
+// Restore saved username on page load
+(function () {
+  const saved = localStorage.getItem('yak-battle-username');
+  if (saved) document.getElementById('player-name').value = saved;
+})();
+
+document.getElementById('player-name').addEventListener('change', () => {
+  const v = document.getElementById('player-name').value.trim();
+  if (v) localStorage.setItem('yak-battle-username', v);
+});
+
 // ── Team persistence (localStorage) ──────────────────────────────────────────
 
 const TEAM_STORAGE_KEY = 'yak-battle-saved-team';
