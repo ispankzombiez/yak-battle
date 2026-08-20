@@ -8,15 +8,15 @@
 }
 .disclaimer-box {
   background: var(--surface); border: 2px solid var(--accent);
-  border-radius: var(--radius); padding: 32px; max-width: 480px;
-  width: 90%; display: flex; flex-direction: column; gap: 20px; text-align: center;
+  border-radius: var(--radius); padding: 40px 36px; max-width: 700px;
+  width: 94%; display: flex; flex-direction: column; gap: 28px; text-align: center;
 }
-.disclaimer-title { color: var(--accent); font-size: 1rem; }
-.disclaimer-text { color: var(--text); font-size: 0.58rem; line-height: 2; }
-.disclaimer-timer { color: var(--text-dim); font-size: 0.6rem; min-height: 1em; }
+.disclaimer-title { color: var(--accent); font-size: 1.4rem; }
+.disclaimer-text { color: var(--text); font-size: 0.78rem; line-height: 2.2; }
+.disclaimer-timer { color: var(--text-dim); font-size: 0.75rem; min-height: 1em; }
 .btn-disclaimer {
-  background: #16a34a; color: #fff; border: none; padding: 14px;
-  border-radius: var(--radius); font-family: var(--pixel-font); font-size: 0.7rem;
+  background: #16a34a; color: #fff; border: none; padding: 18px;
+  border-radius: var(--radius); font-family: var(--pixel-font); font-size: 0.85rem;
   cursor: pointer; width: 100%; letter-spacing: 0.05em;
 }
 .btn-disclaimer:disabled { background: #374151; color: var(--text-dim); cursor: not-allowed; }
