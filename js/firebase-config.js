@@ -16,11 +16,12 @@
 //   6. Click Save
 
 const FIREBASE_CONFIG = {
-  apiKey:            'YOUR_API_KEY_HERE',              // ← paste from Firebase console
+  apiKey:            'AIzaSyAv5mzdWcWJUwfZIwApkyWR9Vn2rGTwnyM',
   authDomain:        'sfl-calculator.firebaseapp.com',
   databaseURL:       'https://sfl-calculator-default-rtdb.firebaseio.com',
   projectId:         'sfl-calculator',
-  storageBucket:     'sfl-calculator.appspot.com',
-  messagingSenderId: 'YOUR_SENDER_ID_HERE',            // ← paste from Firebase console
-  appId:             'YOUR_APP_ID_HERE',               // ← paste from Firebase console
+  storageBucket:     'sfl-calculator.firebasestorage.app',
+  messagingSenderId: '279520711470',
+  appId:             '1:279520711470:web:998b6d743a4f3a7e76e0bf',
+  measurementId:     'G-WR0Q9QQ474',
 };
