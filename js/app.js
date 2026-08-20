@@ -653,8 +653,8 @@ function _showEvent(ev) {
       if (ev.effectiveness > 1)  msg += ' <em>Super effective!</em>';
       if (ev.effectiveness < 1)  msg += ' <em>Not very effective…</em>';
       _log(msg);
-      if (defIsMe) _shakeSprite('my');
-      else         _shakeSprite('opp');
+      _lungeSprite(atkIsMe ? 'my' : 'opp');
+      setTimeout(() => _impactSprite(defIsMe ? 'my' : 'opp'), 220);
       break;
     }
     case 'missed':
@@ -782,6 +782,19 @@ function _setBattleActionsEnabled(enabled) {
   document.querySelectorAll('.move-btn').forEach(b => b.disabled = !enabled);
   const sw = document.getElementById('btn-switch');
   if (sw) sw.disabled = !enabled;
+}
+
+function _lungeSprite(prefix) {
+  const el = document.getElementById(prefix + '-sprite');
+  const cls = prefix === 'opp' ? 'lunge-flip' : 'lunge';
+  el.classList.add(cls);
+  setTimeout(() => el.classList.remove(cls), 480);
+}
+
+function _impactSprite(prefix) {
+  const el = document.getElementById(prefix + '-sprite');
+  el.classList.add('impact-flash', 'hit-shake');
+  setTimeout(() => el.classList.remove('impact-flash', 'hit-shake'), 420);
 }
 
 function _shakeSprite(prefix) {
