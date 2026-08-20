@@ -78,6 +78,7 @@ html, body {
 }
 .btn-back:hover { color: var(--text); }
 
+.btn-exit.hidden { display: none; }
 .btn-exit {
   position: fixed; top: 24px; left: 24px; z-index: 999;
   background: var(--red); border: none; color: #fff;
