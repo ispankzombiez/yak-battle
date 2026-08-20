@@ -673,7 +673,7 @@ function _applyResult(result) {
   let delay = 0;
   result.events.forEach(ev => {
     _pendingBattleTimeouts.push(setTimeout(() => _showEvent(ev), delay));
-    delay += 600;
+    delay += 800;
   });
 
   _pendingBattleTimeouts.push(setTimeout(() => {
@@ -783,6 +783,11 @@ function _showEvent(ev) {
       const team  = isMe ? S.myTeam : S.oppTeam;
       const trainer = isMe ? S.playerName : S.opponentName;
       _log(`${trainer} switched in <b>${esc(team[ev.toIdx].name)}</b>!`);
+      // Swap sprite in sync with the log line
+      _renderActiveCreatures();
+      const spriteEl = document.getElementById((isMe ? 'my' : 'opp') + '-sprite');
+      spriteEl.classList.add('entering');
+      setTimeout(() => spriteEl.classList.remove('entering'), 500);
       break;
     }
     case 'no-effect': {
