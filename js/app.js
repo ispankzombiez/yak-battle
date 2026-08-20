@@ -32,6 +32,7 @@ const S = {
 function showScreen(name) {
   document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
   document.getElementById('screen-' + name).classList.add('active');
+  document.getElementById('btn-exit').classList.toggle('hidden', name === 'lobby');
 }
 
 // ── Utility ───────────────────────────────────────────────────────────────────
@@ -157,6 +158,13 @@ function handleMessage(msg) {
 }
 
 // ── Lobby screen ──────────────────────────────────────────────────────────────
+
+document.getElementById('btn-exit').addEventListener('click', () => {
+  _pendingBattleTimeouts.forEach(clearTimeout);
+  _pendingBattleTimeouts = [];
+  netDisconnect();
+  showScreen('lobby');
+});
 
 document.getElementById('btn-host-public').addEventListener('click', async () => {
   await _startHost(true);

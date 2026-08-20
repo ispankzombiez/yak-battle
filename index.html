@@ -22,6 +22,9 @@
   <!-- hide immediately for returning users before first paint -->
   <script>if(localStorage.getItem('yak-battle-disclaimer')==='agreed')document.getElementById('disclaimer-modal').style.display='none';</script>
 
+  <!-- Persistent exit button (hidden on lobby) -->
+  <button id="btn-exit" class="btn-exit hidden">✕ EXIT</button>
+
   <!-- ══════════════════════════════════════════════════════════════════════ -->
   <!--  SCREEN: Lobby                                                         -->
   <!-- ══════════════════════════════════════════════════════════════════════ -->
@@ -200,14 +203,14 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
-  <script src="js/firebase-config.js?v=202608201458"></script>
+  <script src="js/firebase-config.js?v=202608201510"></script>
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-  <script src="js/moves.js?v=202608201458"></script>
-  <script src="js/abilities.js?v=202608201458"></script>
-  <script src="js/creatures.js?v=202608201458"></script>
-  <script src="js/network.js?v=202608201458"></script>
-  <script src="js/game.js?v=202608201458"></script>
-  <script src="js/app.js?v=202608201458"></script>
+  <script src="js/moves.js?v=202608201510"></script>
+  <script src="js/abilities.js?v=202608201510"></script>
+  <script src="js/creatures.js?v=202608201510"></script>
+  <script src="js/network.js?v=202608201510"></script>
+  <script src="js/game.js?v=202608201510"></script>
+  <script src="js/app.js?v=202608201510"></script>
   <script>
     (function () {
       if (localStorage.getItem('yak-battle-disclaimer') === 'agreed') return;
