@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Yak Battle</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <!--  SCREEN: Lobby                                                         -->
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <div id="screen-lobby" class="screen active">
+    <h1 class="logo">⚔ YAK BATTLE</h1>
+
+    <div class="lobby-inner">
+      <input
+        id="player-name"
+        type="text"
+        class="name-input"
+        placeholder="YOUR NAME"
+        maxlength="16"
+        autocomplete="off"
+      >
+
+      <button id="btn-host-public"  class="btn btn-primary">⚑ HOST PUBLIC BATTLE</button>
+      <button id="btn-host-private" class="btn btn-secondary">🔒 HOST PRIVATE BATTLE</button>
+
+      <div class="lobby-divider">OR JOIN</div>
+
+      <div class="join-row">
+        <input
+          id="join-code"
+          type="text"
+          class="code-input"
+          placeholder="6-CHAR CODE"
+          maxlength="6"
+          autocomplete="off"
+          spellcheck="false"
+        >
+        <button id="btn-join" class="btn btn-accent">JOIN</button>
+      </div>
+
+      <button id="btn-browse" class="btn btn-outline">📋 BROWSE PUBLIC BATTLES</button>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <!--  SCREEN: Browse public rooms                                           -->
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <div id="screen-browse" class="screen">
+    <button id="btn-browse-back" class="btn-back">← BACK</button>
+    <h2>PUBLIC BATTLES</h2>
+    <button id="btn-refresh" class="btn btn-outline btn-sm" style="margin-bottom:16px">↻ REFRESH</button>
+    <div id="rooms-list" class="rooms-list">
+      <p class="empty-msg">Loading…</p>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <!--  SCREEN: Waiting (host)                                                -->
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <div id="screen-waiting" class="screen">
+    <div class="waiting-box">
+      <p class="room-code-label">SHARE THIS CODE WITH YOUR OPPONENT</p>
+      <div id="display-room-code" class="room-code-display">……</div>
+      <p id="waiting-visibility" class="waiting-visibility">(Public)</p>
+      <div class="waiting-pulse" style="margin-top:20px">Waiting for opponent…</div>
+    </div>
+    <button id="btn-cancel-wait" class="btn btn-danger btn-sm" style="margin-top:16px">✕ CANCEL</button>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <!--  SCREEN: Creature select                                               -->
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <div id="screen-select" class="screen">
+    <div class="select-top">
+      <h2 style="margin:0">CHOOSE YOUR CREATURE</h2>
+      <span id="opp-select-status"></span>
+    </div>
+
+    <div id="creature-grid" class="creature-grid"></div>
+
+    <div class="select-footer">
+      <div id="select-preview" class="hidden"></div>
+      <button id="btn-confirm-select" class="btn btn-primary" disabled>CONFIRM</button>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <!--  SCREEN: Battle                                                         -->
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <div id="screen-battle" class="screen">
+
+    <div class="battle-field">
+
+      <!-- Opponent side (top-right) -->
+      <div class="combatant opp-side">
+        <div class="combatant-info">
+          <div class="combatant-name-row">
+            <span id="opp-trainer-name" class="trainer-name"></span>
+          </div>
+          <div class="combatant-name-row">
+            <span id="opp-creature-name" class="combatant-name">???</span>
+            <span id="opp-type-badge" class="type-badge">—</span>
+          </div>
+          <div class="hp-row">
+            <span class="hp-label">HP</span>
+            <div class="hp-track"><div id="opp-hp-fill" class="hp-fill hp-high" style="width:100%"></div></div>
+            <span id="opp-hp-text" class="hp-numbers">— / —</span>
+          </div>
+          <div id="opp-status" class="status-badge hidden"></div>
+        </div>
+        <div class="sprite-wrap">
+          <img id="opp-sprite" src="" alt="opponent" class="creature-sprite">
+        </div>
+      </div>
+
+      <!-- My side (bottom-left) -->
+      <div class="combatant my-side">
+        <div class="sprite-wrap">
+          <img id="my-sprite" src="" alt="my creature" class="creature-sprite">
+        </div>
+        <div class="combatant-info">
+          <div class="combatant-name-row">
+            <span id="my-trainer-name" class="trainer-name"></span>
+          </div>
+          <div class="combatant-name-row">
+            <span id="my-creature-name" class="combatant-name">???</span>
+            <span id="my-type-badge" class="type-badge">—</span>
+          </div>
+          <div class="hp-row">
+            <span class="hp-label">HP</span>
+            <div class="hp-track"><div id="my-hp-fill" class="hp-fill hp-high" style="width:100%"></div></div>
+            <span id="my-hp-text" class="hp-numbers">— / —</span>
+          </div>
+          <div id="my-status" class="status-badge hidden"></div>
+        </div>
+      </div>
+
+    </div><!-- /battle-field -->
+
+    <div id="battle-log" class="battle-log"></div>
+
+    <div id="move-buttons" class="move-buttons"></div>
+
+    <div id="battle-waiting" class="battle-waiting hidden">Waiting for opponent's move…</div>
+
+  </div><!-- /screen-battle -->
+
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <!--  SCREEN: Game over                                                     -->
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <div id="screen-gameover" class="screen">
+    <div class="gameover-inner">
+      <h2 id="gameover-title">YOU WIN!</h2>
+      <img id="gameover-winner-sprite" src="" alt="winner">
+      <p id="gameover-result-text"></p>
+      <div class="gameover-btns">
+        <button id="btn-rematch"      class="btn btn-primary">↺ REMATCH</button>
+        <button id="btn-return-lobby" class="btn btn-secondary">⌂ LOBBY</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Scripts ──────────────────────────────────────────────────────────── -->
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <script src="js/creatures.js"></script>
+  <script src="js/network.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/app.js"></script>
+
+</body>
+</html>

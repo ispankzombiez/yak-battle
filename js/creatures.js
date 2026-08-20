@@ -1,0 +1,306 @@
+// ── Type system ──────────────────────────────────────────────────────────────
+
+const TYPE_COLORS = {
+  Fire:     '#ff6b35',
+  Water:    '#4a90d9',
+  Grass:    '#5aab4b',
+  Normal:   '#a0a0a0',
+  Rock:     '#b8864e',
+  Bug:      '#8db830',
+  Poison:   '#9b59b6',
+  Flying:   '#82b4e0',
+  Ice:      '#5bc8d4',
+  Psychic:  '#e84393',
+  Ground:   '#c8a860',
+  Dragon:   '#6050dc',
+  Dark:     '#4a3b5c',
+  Fighting: '#c03028',
+  Fairy:    '#f4a0d4',
+};
+
+// attackType → { defenderType: multiplier }  (missing entry = 1×)
+const TYPE_CHART = {
+  Fire:     { Grass: 2, Bug: 2, Ice: 2, Water: 0.5, Rock: 0.5, Fire: 0.5 },
+  Water:    { Fire: 2, Rock: 2, Ground: 2, Grass: 0.5, Water: 0.5 },
+  Grass:    { Water: 2, Rock: 2, Ground: 2, Fire: 0.5, Grass: 0.5, Poison: 0.5, Flying: 0.5, Bug: 0.5 },
+  Rock:     { Fire: 2, Flying: 2, Bug: 2, Ice: 2, Rock: 0.5 },
+  Bug:      { Grass: 2, Psychic: 2, Poison: 2, Dark: 2, Fire: 0.5, Flying: 0.5, Fairy: 0.5 },
+  Poison:   { Grass: 2, Fairy: 2, Poison: 0.5, Rock: 0.5 },
+  Flying:   { Grass: 2, Bug: 2, Fighting: 2, Rock: 0.5 },
+  Ice:      { Grass: 2, Flying: 2, Ground: 2, Dragon: 2, Fire: 0.5, Water: 0.5, Ice: 0.5 },
+  Psychic:  { Poison: 2, Fighting: 2, Bug: 0.5, Dark: 0 },
+  Normal:   {},
+  Ground:   { Fire: 2, Rock: 2, Poison: 2, Electric: 2 },
+  Dragon:   { Dragon: 2, Steel: 0.5, Fairy: 0 },
+  Dark:     { Psychic: 2, Ghost: 2, Dark: 0.5, Fighting: 0.5, Fairy: 0.5 },
+  Fighting: { Normal: 2, Rock: 2, Ice: 2, Dark: 2, Bug: 0.5, Psychic: 0.5, Flying: 0.5, Fairy: 0.5, Poison: 0.5 },
+  Fairy:    { Dragon: 2, Dark: 2, Fighting: 2, Fire: 0.5, Poison: 0.5 },
+};
+
+function getTypeEffectiveness(attackType, defenseType) {
+  return (TYPE_CHART[attackType] ?? {})[defenseType] ?? 1;
+}
+
+function getTypeColor(type) {
+  return TYPE_COLORS[type] ?? '#888';
+}
+
+// ── Creature roster ───────────────────────────────────────────────────────────
+// Stats: hp, atk, def, spd  (scale: ~60 average, ~120 high)
+// Moves: power 0 = status/heal; priority 1 = always goes first; accuracy < 1 = can miss
+
+const CREATURES = [
+  {
+    id: 'armadillo',
+    name: 'Armadillo',
+    sprite: 'armadillo.webp',
+    type: 'Ground',
+    hp: 80, atk: 82, def: 80, spd: 52,
+    desc: 'A burrowing armadillo that shakes the earth beneath its foes.',
+    moves: [
+      { name: 'Sand Slash',    type: 'Ground', power: 55, pp: 20 },
+      { name: 'Bulldoze',      type: 'Ground', power: 65, pp: 20 },
+      { name: 'Dig',           type: 'Ground', power: 80, pp: 10 },
+      { name: 'Earthquake',    type: 'Ground', power: 100, pp: 8 },
+    ],
+  },
+  {
+    id: 'bird',
+    name: 'Bird',
+    sprite: 'bird.webp',
+    type: 'Flying',
+    hp: 62, atk: 78, def: 52, spd: 105,
+    desc: 'A quick-winged creature with razor-sharp talons.',
+    moves: [
+      { name: 'Peck',          type: 'Normal', power: 35, pp: 35 },
+      { name: 'Wing Attack',   type: 'Flying', power: 60, pp: 30 },
+      { name: 'Air Slash',     type: 'Flying', power: 75, pp: 15, effect: { type: 'flinch',   chance: 0.30 } },
+      { name: 'Aerial Ace',    type: 'Flying', power: 90, pp: 8 },
+    ],
+  },
+  {
+    id: 'bug',
+    name: 'Bug',
+    sprite: 'bug.webp',
+    type: 'Bug',
+    hp: 68, atk: 72, def: 65, spd: 78,
+    desc: 'A sturdy insect that fights with crunching mandibles.',
+    moves: [
+      { name: 'Tackle',        type: 'Normal', power: 40, pp: 35 },
+      { name: 'Bug Bite',      type: 'Bug',    power: 60, pp: 20 },
+      { name: 'String Shot',   type: 'Bug',    power: 40, pp: 25, effect: { type: 'paralyze', chance: 0.25 } },
+      { name: 'X-Scissor',     type: 'Bug',    power: 90, pp: 8 },
+    ],
+  },
+  {
+    id: 'bunny',
+    name: 'Bunny',
+    sprite: 'bunny.webp',
+    type: 'Normal',
+    hp: 62, atk: 68, def: 48, spd: 115,
+    desc: 'Blindingly fast — strikes before opponents can react.',
+    moves: [
+      { name: 'Quick Attack',  type: 'Normal', power: 40, pp: 30, priority: 1 },
+      { name: 'Double Kick',   type: 'Normal', power: 55, pp: 25 },
+      { name: 'Headbutt',      type: 'Normal', power: 70, pp: 15, effect: { type: 'flinch',   chance: 0.30 } },
+      { name: 'Last Resort',   type: 'Normal', power: 95, pp: 5 },
+    ],
+  },
+  {
+    id: 'cow',
+    name: 'Cow',
+    sprite: 'cow.webp',
+    type: 'Fire',
+    hp: 102, atk: 82, def: 80, spd: 42,
+    desc: 'A blazing bull whose horns glow white-hot in battle.',
+    moves: [
+      { name: 'Fire Breath',   type: 'Fire',   power: 55, pp: 20 },
+      { name: 'Horn Blaze',    type: 'Fire',   power: 70, pp: 15, effect: { type: 'burn',     chance: 0.15 } },
+      { name: 'Body Slam',     type: 'Normal', power: 85, pp: 12, effect: { type: 'paralyze', chance: 0.30 } },
+      { name: 'Eruption Charge', type: 'Fire', power: 105, pp: 5 },
+    ],
+  },
+  {
+    id: 'dino',
+    name: 'Dino',
+    sprite: 'dino.webp',
+    type: 'Dragon',
+    hp: 78, atk: 92, def: 65, spd: 80,
+    desc: 'An ancient dragon whose raw power has outlasted civilisations.',
+    moves: [
+      { name: 'Dragon Rage',   type: 'Dragon', power: 60, pp: 20 },
+      { name: 'Dragon Claw',   type: 'Dragon', power: 80, pp: 15 },
+      { name: 'Bite',          type: 'Normal', power: 60, pp: 25 },
+      { name: 'Outrage',       type: 'Dragon', power: 120, pp: 5 },
+    ],
+  },
+  {
+    id: 'legendary',
+    name: 'Fox',
+    sprite: 'legendary.webp',
+    type: 'Fairy',
+    hp: 92, atk: 100, def: 88, spd: 112,
+    desc: 'A mythical fox spirit whose charm can stop dragons in their tracks.',
+    moves: [
+      { name: 'Fairy Wind',    type: 'Fairy',  power: 40, pp: 30 },
+      { name: 'Dazzling Gleam', type: 'Fairy', power: 80, pp: 12 },
+      { name: 'Moonblast',     type: 'Fairy',  power: 95, pp: 10 },
+      { name: 'Play Rough',    type: 'Fairy',  power: 90, pp: 10, effect: { type: 'flinch', chance: 0.10 } },
+    ],
+  },
+  {
+    id: 'panda',
+    name: 'Panda',
+    sprite: 'panda.webp',
+    type: 'Dark',
+    hp: 92, atk: 86, def: 75, spd: 58,
+    desc: 'Looks harmless. Strikes from the shadows without warning.',
+    moves: [
+      { name: 'Bite',          type: 'Dark',   power: 60, pp: 25 },
+      { name: 'Night Slash',   type: 'Dark',   power: 70, pp: 15 },
+      { name: 'Crunch',        type: 'Dark',   power: 80, pp: 15, effect: { type: 'flinch',   chance: 0.20 } },
+      { name: 'Sucker Punch',  type: 'Dark',   power: 80, pp: 5,  priority: 1 },
+    ],
+  },
+  {
+    id: 'penguin',
+    name: 'Penguin',
+    sprite: 'penguin.webp',
+    type: 'Ice',
+    hp: 74, atk: 80, def: 72, spd: 72,
+    desc: 'A creature of the frozen tundra. Strikes first with shards of ice.',
+    moves: [
+      { name: 'Ice Shard',     type: 'Ice',    power: 40, pp: 30, priority: 1 },
+      { name: 'Powder Snow',   type: 'Ice',    power: 40, pp: 25 },
+      { name: 'Ice Beam',      type: 'Ice',    power: 90, pp: 10 },
+      { name: 'Blizzard',      type: 'Ice',    power: 95, pp: 5,  accuracy: 0.70 },
+    ],
+  },
+  {
+    id: 'pig',
+    name: 'Pig',
+    sprite: 'pig.webp',
+    type: 'Fighting',
+    hp: 96, atk: 88, def: 70, spd: 55,
+    desc: 'Trains day and night. Its short-range punches hit like freight trains.',
+    moves: [
+      { name: 'Mach Punch',    type: 'Fighting', power: 40, pp: 30, priority: 1 },
+      { name: 'Low Kick',      type: 'Fighting', power: 65, pp: 20 },
+      { name: 'Headbutt',      type: 'Normal',   power: 70, pp: 15, effect: { type: 'flinch', chance: 0.30 } },
+      { name: 'Close Combat',  type: 'Fighting', power: 120, pp: 5 },
+    ],
+  },
+  {
+    id: 'plant',
+    name: 'Plant',
+    sprite: 'plant.webp',
+    type: 'Grass',
+    hp: 70, atk: 75, def: 70, spd: 65,
+    desc: 'A sprout with a fierce attitude and draining vines.',
+    moves: [
+      { name: 'Vine Whip',     type: 'Grass',  power: 45, pp: 25 },
+      { name: 'Absorb',        type: 'Grass',  power: 50, pp: 25, effect: { type: 'drain', amount: 0.50 } },
+      { name: 'Razor Leaf',    type: 'Grass',  power: 75, pp: 15 },
+      { name: 'Solar Beam',    type: 'Grass',  power: 100, pp: 8 },
+    ],
+  },
+  {
+    id: 'platapus',
+    name: 'Platypus',
+    sprite: 'platapus.webp',
+    type: 'Water',
+    hp: 80, atk: 76, def: 65, spd: 88,
+    desc: 'Odd but effective. Uses a venomous spur to surprise foes.',
+    moves: [
+      { name: 'Bubble Beam',   type: 'Water',  power: 65, pp: 20 },
+      { name: 'Spur Jab',      type: 'Poison', power: 60, pp: 20, effect: { type: 'poison',   chance: 0.30 } },
+      { name: 'Tail Slap',     type: 'Normal', power: 55, pp: 25 },
+      { name: 'Surf',          type: 'Water',  power: 90, pp: 8 },
+    ],
+  },
+  {
+    id: 'rock-turtle',
+    name: 'Rock Turtle',
+    sprite: 'rock-turtle.webp',
+    type: 'Rock',
+    hp: 105, atk: 65, def: 125, spd: 28,
+    desc: 'An ancient fortress. Its shell can outlast most attacks.',
+    moves: [
+      { name: 'Rock Throw',    type: 'Rock',   power: 50, pp: 15 },
+      { name: 'Shell Smash',   type: 'Normal', power: 75, pp: 12 },
+      { name: 'Stone Edge',    type: 'Rock',   power: 100, pp: 5, accuracy: 0.80 },
+      { name: 'Rock Slide',    type: 'Rock',   power: 75, pp: 10, effect: { type: 'flinch',   chance: 0.30 } },
+    ],
+  },
+  {
+    id: 'sloth',
+    name: 'Sloth',
+    sprite: 'sloth.webp',
+    type: 'Grass',
+    hp: 90, atk: 100, def: 68, spd: 28,
+    desc: 'Moves at a glacial pace, but its vine strikes hit before you realise.',
+    moves: [
+      { name: 'Vine Wrap',     type: 'Grass',  power: 50, pp: 25 },
+      { name: 'Leaf Slash',    type: 'Grass',  power: 75, pp: 15 },
+      { name: 'Giga Drain',    type: 'Grass',  power: 75, pp: 10, effect: { type: 'drain', amount: 0.50 } },
+      { name: 'Petal Blizzard', type: 'Grass', power: 100, pp: 8 },
+    ],
+  },
+  {
+    id: 'snake',
+    name: 'Snake',
+    sprite: 'snake.webp',
+    type: 'Poison',
+    hp: 68, atk: 88, def: 55, spd: 105,
+    desc: 'Strikes before the enemy notices. Venom lingers.',
+    moves: [
+      { name: 'Poison Sting',  type: 'Poison', power: 20, pp: 35, effect: { type: 'poison',   chance: 0.30 } },
+      { name: 'Bite',          type: 'Normal', power: 60, pp: 25 },
+      { name: 'Venom Fang',    type: 'Poison', power: 65, pp: 15, effect: { type: 'poison',   chance: 0.20 } },
+      { name: 'Coil Strike',   type: 'Poison', power: 85, pp: 8 },
+    ],
+  },
+  {
+    id: 'spider',
+    name: 'Spider',
+    sprite: 'spider.webp',
+    type: 'Bug',
+    hp: 64, atk: 82, def: 60, spd: 92,
+    desc: 'Weaves webs to slow foes, then finishes them off.',
+    moves: [
+      { name: 'Bug Bite',      type: 'Bug',    power: 60, pp: 20 },
+      { name: 'Web Wrap',      type: 'Bug',    power: 40, pp: 20, effect: { type: 'paralyze', chance: 0.40 } },
+      { name: 'Poison Jab',    type: 'Poison', power: 80, pp: 12, effect: { type: 'poison',   chance: 0.30 } },
+      { name: 'X-Scissor',     type: 'Bug',    power: 90, pp: 8 },
+    ],
+  },
+  {
+    id: 'squid',
+    name: 'Squid',
+    sprite: 'squid.webp',
+    variants: ['squid.webp', 'shiny-squid.webp'], // shiny is a colour variant
+    type: 'Water',
+    hp: 75, atk: 85, def: 58, spd: 90,
+    desc: 'Fires ink to blind opponents, then tears them apart.',
+    moves: [
+      { name: 'Ink Blast',     type: 'Water',  power: 65, pp: 20 },
+      { name: 'Tentacle Slap', type: 'Normal', power: 50, pp: 30 },
+      { name: 'Tidal Wave',    type: 'Water',  power: 85, pp: 8,  effect: { type: 'paralyze', chance: 0.15 } },
+      { name: 'Bubble Spray',  type: 'Water',  power: 40, pp: 35 },
+    ],
+  },
+  {
+    id: 'weasle',
+    name: 'Weasel',
+    sprite: 'weasle.webp',
+    type: 'Normal',
+    hp: 64, atk: 88, def: 48, spd: 118,
+    desc: 'The fastest creature in the roster. Rarely takes a hit.',
+    moves: [
+      { name: 'Quick Attack',  type: 'Normal', power: 40, pp: 30, priority: 1 },
+      { name: 'Bite',          type: 'Normal', power: 60, pp: 25 },
+      { name: 'Fury Swipes',   type: 'Normal', power: 75, pp: 15 },
+      { name: 'Last Resort',   type: 'Normal', power: 95, pp: 5 },
+    ],
+  },
+];
