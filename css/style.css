@@ -675,6 +675,11 @@ h2 {
   text-align: center; margin-top: 10px; min-height: 1.2em; line-height: 1.8;
 }
 
+.auth-verify-msg {
+  color: #4ade80; font-family: var(--pixel-font); font-size: 0.42rem;
+  text-align: center; margin-top: 10px; line-height: 2.0;
+}
+
 /* ── Leaderboard screen ──────────────────────────────────────────────────── */
 #screen-leaderboard { align-items: stretch; }
 
