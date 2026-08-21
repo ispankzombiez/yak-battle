@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -14,9 +14,9 @@
   <!-- Disclaimer modal -->
   <div id="disclaimer-modal" class="disclaimer-overlay">
     <div class="disclaimer-box">
-      <h2 class="disclaimer-title">âš  NOTICE</h2>
+      <h2 class="disclaimer-title">⚠ NOTICE</h2>
       <p class="disclaimer-text">This is for <span style="color:#4ade80">FUN</span> only. We are <span style="color:#f87171">NOT</span> associated with Yakkamon. And this is <span style="color:#f87171">NOT</span> a reflection of the game Yakkamon. This is a <span style="color:#facc15">FAN MADE</span> project, for <span style="color:#4ade80">FUN</span> only and may be taken down without notice if requested.</p>
-      <div id="disclaimer-timer" class="disclaimer-timer">Please wait <span id="disclaimer-countdown">10</span>sâ€¦</div>
+      <div id="disclaimer-timer" class="disclaimer-timer">Please wait <span id="disclaimer-countdown">10</span>s…</div>
       <button id="btn-disclaimer" class="btn-disclaimer" disabled>ACKNOWLEDGED</button>
     </div>
   </div>
@@ -26,20 +26,20 @@
   <!-- Update available panel -->
   <div id="update-panel" class="update-overlay hidden">
     <div class="update-box">
-      <h2 class="update-title">â¬† UPDATE AVAILABLE</h2>
+      <h2 class="update-title">⬆ UPDATE AVAILABLE</h2>
       <p class="update-text">A new version of Yak Battle is available.<br>Click OK to reload and apply the update.</p>
       <button id="btn-update-ok" class="btn-update-ok">OK</button>
     </div>
   </div>
 
   <!-- Persistent exit button (hidden on lobby) -->
-  <button id="btn-exit" class="btn-exit hidden">âœ• EXIT</button>
+  <button id="btn-exit" class="btn-exit hidden">✕ EXIT</button>
 
-  <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
   <!--  SCREEN: Lobby                                                         -->
-  <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
   <div id="screen-lobby" class="screen active">
-    <h1 class="logo">âš” YAK BATTLE</h1>
+    <h1 class="logo">⚔ YAK BATTLE</h1>
 
     <div class="lobby-inner">
       <div class="join-row">
@@ -51,11 +51,11 @@
           maxlength="16"
           autocomplete="off"
         >
-        <button id="btn-manage-team" class="btn btn-outline">ðŸŽ’ MANAGE TEAM</button>
+        <button id="btn-manage-team" class="btn btn-outline">🎒 MANAGE TEAM</button>
       </div>
 
-      <button id="btn-host-public"  class="btn btn-primary">âš‘ HOST PUBLIC BATTLE</button>
-      <button id="btn-host-private" class="btn btn-secondary">ðŸ”’ HOST PRIVATE BATTLE</button>
+      <button id="btn-host-public"  class="btn btn-primary">⚑ HOST PUBLIC BATTLE</button>
+      <button id="btn-host-private" class="btn btn-secondary">🔒 HOST PRIVATE BATTLE</button>
 
       <div class="lobby-divider">OR JOIN</div>
 
@@ -72,38 +72,38 @@
         <button id="btn-join" class="btn btn-accent">JOIN</button>
       </div>
 
-      <button id="btn-browse" class="btn btn-outline">ðŸ“‹ BROWSE PUBLIC BATTLES</button>
+      <button id="btn-browse" class="btn btn-outline">📋 BROWSE PUBLIC BATTLES</button>
     </div>
   </div>
 
-  <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
   <!--  SCREEN: Browse public rooms                                           -->
-  <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
   <div id="screen-browse" class="screen">
-    <button id="btn-browse-back" class="btn-back">â† BACK</button>
+    <button id="btn-browse-back" class="btn-back">← BACK</button>
     <h2>PUBLIC BATTLES</h2>
-    <button id="btn-refresh" class="btn btn-outline btn-sm" style="margin-bottom:16px">â†» REFRESH</button>
+    <button id="btn-refresh" class="btn btn-outline btn-sm" style="margin-bottom:16px">↻ REFRESH</button>
     <div id="rooms-list" class="rooms-list">
-      <p class="empty-msg">Loadingâ€¦</p>
+      <p class="empty-msg">Loading…</p>
     </div>
   </div>
 
-  <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
   <!--  SCREEN: Waiting (host)                                                -->
-  <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
   <div id="screen-waiting" class="screen">
     <div class="waiting-box">
       <p class="room-code-label">SHARE THIS CODE WITH YOUR OPPONENT</p>
-      <div id="display-room-code" class="room-code-display">â€¦â€¦</div>
+      <div id="display-room-code" class="room-code-display">……</div>
       <p id="waiting-visibility" class="waiting-visibility">(Public)</p>
-      <div class="waiting-pulse" style="margin-top:20px">Waiting for opponentâ€¦</div>
+      <div class="waiting-pulse" style="margin-top:20px">Waiting for opponent…</div>
     </div>
-    <button id="btn-cancel-wait" class="btn btn-danger btn-sm" style="margin-top:16px">âœ• CANCEL</button>
+    <button id="btn-cancel-wait" class="btn btn-danger btn-sm" style="margin-top:16px">✕ CANCEL</button>
   </div>
 
-  <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
   <!--  SCREEN: Creature select                                               -->
-  <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
   <div id="screen-select" class="screen">
     <div class="select-top">
       <h2 style="margin:0">BUILD YOUR TEAM</h2>
@@ -122,15 +122,15 @@
     </div>
   </div>
 
-  <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
   <!--  SCREEN: Battle                                                         -->
-  <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
   <div id="screen-battle" class="screen">
 
     <!-- Trainer names header -->
     <div class="battle-header">
       <span id="my-trainer-name" class="trainer-name"></span>
-      <span class="vs-sep">âš” VS âš”</span>
+      <span class="vs-sep">⚔ VS ⚔</span>
       <span id="opp-trainer-name" class="trainer-name"></span>
     </div>
 
@@ -230,23 +230,23 @@
 
   </div><!-- /screen-battle -->
 
-  <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
   <!--  SCREEN: Game over                                                     -->
-  <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
   <div id="screen-gameover" class="screen">
     <div class="gameover-inner">
       <h2 id="gameover-title">YOU WIN!</h2>
       <img id="gameover-winner-sprite" src="" alt="winner">
       <p id="gameover-result-text"></p>
       <div class="gameover-btns">
-        <button id="btn-rematch"      class="btn btn-primary">â†º REMATCH</button>
-        <button id="btn-return-lobby" class="btn btn-secondary">âŒ‚ LOBBY</button>
+        <button id="btn-rematch"      class="btn btn-primary">↺ REMATCH</button>
+        <button id="btn-return-lobby" class="btn btn-secondary">⌂ LOBBY</button>
       </div>
     </div>
   </div>
 
-  <!-- â”€â”€ Scripts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
-  <!-- Firebase SDK (compat â€” no ES modules required) -->
+  <!-- ── Scripts ──────────────────────────────────────────────────────────── -->
+  <!-- Firebase SDK (compat — no ES modules required) -->
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>

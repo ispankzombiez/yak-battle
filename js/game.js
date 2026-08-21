@@ -1,9 +1,9 @@
-﻿// â”€â”€ Battle resolution engine (pure functions, no DOM) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Battle resolution engine (pure functions, no DOM) ─────────────────────────
 //
 // The HOST pre-resolves the ENTIRE battle before sending battle-start.
 // Both sides animate the pre-computed event log at 1100 ms per event.
 
-// Legacy contact set â€” used for moves without a .contact property
+// Legacy contact set — used for moves without a .contact property
 const CONTACT_MOVES = new Set([
   'Sand Slash','Bulldoze','Dig',
   'Peck','Wing Attack','Air Slash','Aerial Ace',
@@ -46,12 +46,12 @@ function buildBattleCreature(creatureData, variantSprite, abilityId, selectedMov
   };
 }
 
-// stat stage multiplier: +1=1.5Ã—, +2=2Ã—, -1=0.67Ã—, etc.
+// stat stage multiplier: +1=1.5×, +2=2×, -1=0.67×, etc.
 function _stageMultiplier(stage) {
   return stage >= 0 ? (2 + stage) / 2 : 2 / (2 - stage);
 }
 
-// â”€â”€ Damage formula â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Damage formula ────────────────────────────────────────────────────────────
 
 function _calcDamage(atk, move, def) {
   const effectiveness = getTypeEffectiveness(move.type, def.type);
@@ -91,7 +91,7 @@ function _calcDamage(atk, move, def) {
   return { damage: dmg, effectiveness, isCrit: crit };
 }
 
-// â”€â”€ Auto-battle helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Auto-battle helpers ───────────────────────────────────────────────────────
 
 // Move the back creature to the front slot when the front is dead.
 // Returns true if an advance occurred.
@@ -108,7 +108,7 @@ function _tryAdvance(lanes, laneIdx, side, events) {
 
 // Apply one creature's attack.
 // Mutates atk / def in place and pushes events.
-// Does NOT push 'fainted' events â€” the caller handles those.
+// Does NOT push 'fainted' events — the caller handles those.
 function _applyOneMoveAuto(atk, atkSide, atkLane, def, defSide, defLane, move, events, flinchSet) {
   // Paralysis: 25 % chance can't move
   if (atk.status === 'paralyze' && Math.random() < 0.25) {
@@ -288,7 +288,7 @@ function _applyOneMoveAuto(atk, atkSide, atkLane, def, defSide, defLane, move, e
   }
 }
 
-// â”€â”€ Full battle resolution (host only) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Full battle resolution (host only) ────────────────────────────────────────
 //
 // hostLanes / guestLanes: [ [frontBC, backBC|null], [f,b], [f,b] ]
 // Returns { events: [...], winner: 'host'|'guest' }
@@ -397,7 +397,7 @@ function resolveFullBattle(hostLanes, guestLanes) {
 
     if (gameOver) break;
 
-    // â”€â”€ End-of-round effects â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── End-of-round effects ──────────────────────────────────────────────────
     for (let i = 0; i < 3; i++) {
       for (const [side, lanes] of [['host', hLanes], ['guest', gLanes]]) {
         const c = getFront(lanes, i);
