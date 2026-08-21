@@ -46,6 +46,7 @@ function showScreen(name) {
   document.getElementById('screen-' + name).classList.add('active');
   const showExit = name === 'select' || name === 'battle';
   document.getElementById('btn-exit').classList.toggle('hidden', !showExit);
+  if (name !== 'select') document.getElementById('select-sheet-overlay')?.classList.remove('active');
 }
 
 // ── Utility ───────────────────────────────────────────────────────────────────
@@ -268,6 +269,17 @@ function enterCreatureSelect(solo = false) {
   showScreen('select');
   document.getElementById('opp-select-status').textContent = solo ? '' : 'Opponent is selecting…';
   document.getElementById('select-preview').classList.add('hidden');
+  const _sheetOv = document.getElementById('select-sheet-overlay');
+  if (_sheetOv) {
+    _sheetOv.classList.remove('active');
+    if (!_sheetOv._lsnr) {
+      _sheetOv.addEventListener('click', () => {
+        document.getElementById('select-preview').classList.add('hidden');
+        _sheetOv.classList.remove('active');
+      });
+      _sheetOv._lsnr = true;
+    }
+  }
   _renderTeamSlots();
   _updateConfirmBtn();
   _refreshCardBadges();
@@ -435,6 +447,7 @@ function _selectCard(id) {
 
   const preview = document.getElementById('select-preview');
   preview.innerHTML = `
+    <div class="preview-drag-handle"></div>
     <img src="${currentVariant}" alt="${esc(c.name)}" id="preview-sprite-img">
     <div class="preview-info">
       <strong>${esc(c.name)}</strong>
@@ -539,7 +552,7 @@ function _selectCard(id) {
   });
 
   const addBtn = document.createElement('button');
-  addBtn.className   = 'btn btn-sm ' + (onTeam ? 'btn-danger' : 'btn-primary');
+  addBtn.className   = 'btn btn-sm preview-main-btn ' + (onTeam ? 'btn-danger' : 'btn-primary');
   addBtn.style.marginTop = '8px';
   addBtn.textContent = onTeam ? '\u2715 REMOVE' : (teamFull ? 'TEAM FULL' : '\uff0b ADD TO TEAM');
   const needMoves = !!(c.movesPool?.length);
@@ -552,8 +565,9 @@ function _selectCard(id) {
       _selectCard(id);
     }
   });
-  preview.querySelector('.preview-info').appendChild(addBtn);
+  preview.querySelector('.preview-info').prepend(addBtn);
   preview.classList.remove('hidden');
+  document.getElementById('select-sheet-overlay')?.classList.add('active');
 }
 
 document.getElementById('btn-confirm-select').addEventListener('click', () => {

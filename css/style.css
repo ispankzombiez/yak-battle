@@ -239,6 +239,13 @@ h2 {
 .team-slot.dragging  { opacity: 0.35; cursor: grabbing; }
 .team-slot.drag-over { border-color: var(--blue) !important; background: rgba(59,130,246,.12); }
 
+/* Drag handle pill — hidden by default, shown in mobile bottom sheet */
+.preview-drag-handle {
+  display: none;
+  width: 40px; height: 4px; background: var(--border);
+  border-radius: 2px; margin: 8px auto 4px;
+}
+
 /* Select body: grid + preview side by side on wider screens */
 .select-body {
   display: flex; gap: 16px; width: 100%; align-items: flex-start;
@@ -575,6 +582,44 @@ h2 {
   .creature-sprite { width: 120px; height: 120px; }
   .battle-field    { min-height: 200px; }
   .creature-grid   { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
+}
+
+/* ── Mobile: creature select preview as bottom sheet ─────────────────────── */
+@media (max-width: 640px) {
+  .select-body { flex-direction: column; }
+
+  /* Dimming overlay behind the sheet */
+  .select-sheet-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.55); z-index: 499;
+  }
+  .select-sheet-overlay.active { display: block; }
+
+  /* Slide-up bottom sheet */
+  #select-preview {
+    position: fixed !important;
+    inset: auto 0 0 0;
+    width: 100% !important; max-width: 100% !important;
+    align-self: unset !important;
+    border-radius: 16px 16px 0 0 !important;
+    border: none !important; border-top: 2px solid var(--accent) !important;
+    z-index: 500; max-height: 80vh;
+    overflow-y: auto; overscroll-behavior: contain;
+    transform: translateY(110%);
+    transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 20px);
+  }
+  #select-preview:not(.hidden) { transform: translateY(0); }
+
+  .preview-drag-handle { display: block; }
+
+  /* Make the add/remove button sticky at the top of the sheet while scrolling */
+  .preview-main-btn {
+    position: sticky; top: 8px; z-index: 1;
+    width: 100%; justify-content: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,.4);
+  }
 }
 
 /* ── Team indicators in battle ───────────────────────────────────────────── */
