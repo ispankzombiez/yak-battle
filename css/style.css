@@ -1,6 +1,9 @@
 /* ── Reset & base ─────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* Global utility — overridden by more-specific display rules where needed */
+.hidden { display: none !important; }
+
 /* ── Update panel ────────────────────────────────────────────────────────── */
 .update-overlay {
   position: fixed; inset: 0; background: rgba(0,0,0,0.85);
