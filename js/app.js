@@ -422,7 +422,7 @@ function _selectCard(id) {
 
   // Reset variant/ability/moves only when switching to a new creature
   if (S._pendingPreviewId !== id) {
-    const teamEntry = S._mySelectedTeam.find(x => x.id === id);
+    const teamEntry = S._mySelectedTeam.find(x => x?.id === id);
     S._pendingVariant = teamEntry ? teamEntry.variant : c.sprite;
     S._pendingAbility = teamEntry ? teamEntry.ability : (c.abilities?.[0] ?? null);
     S._pendingMoves   = teamEntry ? [...teamEntry.moves] : [];
