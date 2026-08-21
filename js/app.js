@@ -2,7 +2,8 @@
 
 // Timeout handles for the current battle's event/render chain; cancelled on new battle start.
 let _pendingBattleTimeouts = [];
-let _soloBuilder = false; // true when editing team from lobby (no opponent)
+let _soloBuilder   = false; // true when editing team from lobby (no opponent)
+let _dragSlotIdx   = null;  // source slot index during drag-and-drop
 
 // ── Version check ─────────────────────────────────────────────────────────────
 (async function _checkVersion() {
@@ -82,13 +83,14 @@ function _loadSavedTeam() {
     if (!raw) return [];
     const team = JSON.parse(raw);
     if (!Array.isArray(team)) return [];
-    return team.filter(entry => {
-      if (!entry?.id || !Array.isArray(entry.moves) || entry.moves.length !== 4) return false;
-      if (!CREATURES.find(c => c.id === entry.id)) return false;
-      if (!entry.moves.every(m => MOVE_POOL[m])) return false;
-      if (entry.ability && !ABILITIES[entry.ability]) return false;
-      return true;
-    }).slice(0, 6);
+    return team.slice(0, 6).map(entry => {
+      if (!entry) return null;
+      if (!entry.id || !Array.isArray(entry.moves) || entry.moves.length !== 4) return null;
+      if (!CREATURES.find(c => c.id === entry.id)) return null;
+      if (!entry.moves.every(m => MOVE_POOL[m])) return null;
+      if (entry.ability && !ABILITIES[entry.ability]) return null;
+      return entry;
+    });
   } catch { return []; }
 }
 
@@ -258,6 +260,7 @@ function enterCreatureSelect(solo = false) {
   S.myConfirmed       = false;
   S.oppConfirmed      = false;
   S._mySelectedTeam   = _loadSavedTeam();
+  S._mySelectedTeam   = Array.from({ length: 6 }, (_, i) => S._mySelectedTeam[i] ?? null);
   S._pendingPreviewId = null;
   S._pendingVariant   = null;
   S._pendingAbility   = null;
@@ -295,6 +298,35 @@ function _renderTeamSlots() {
     const entry = S._mySelectedTeam[i];
     const div   = document.createElement('div');
     div.className = 'team-slot' + (entry ? ' filled' : '');
+    div.draggable = true;
+    div.addEventListener('dragstart', e => {
+      _dragSlotIdx = i;
+      e.dataTransfer.effectAllowed = 'move';
+      setTimeout(() => div.classList.add('dragging'), 0);
+    });
+    div.addEventListener('dragend', () => {
+      _dragSlotIdx = null;
+      document.querySelectorAll('.team-slot').forEach(s => s.classList.remove('dragging', 'drag-over'));
+    });
+    div.addEventListener('dragover', e => {
+      if (_dragSlotIdx === i) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      div.classList.add('drag-over');
+    });
+    div.addEventListener('dragleave', () => div.classList.remove('drag-over'));
+    div.addEventListener('drop', e => {
+      e.preventDefault();
+      div.classList.remove('drag-over');
+      const from = _dragSlotIdx, to = i;
+      if (from === null || from === to) return;
+      [S._mySelectedTeam[from], S._mySelectedTeam[to]] = [S._mySelectedTeam[to], S._mySelectedTeam[from]];
+      _dragSlotIdx = null;
+      _saveTeam();
+      _renderTeamSlots();
+      _updateConfirmBtn();
+      _refreshCardBadges();
+    });
     if (entry) {
       const c = CREATURES.find(x => x.id === entry.id);
       div.innerHTML = `
@@ -315,13 +347,14 @@ function _renderTeamSlots() {
 }
 
 function _addToTeam() {
-  if (S._mySelectedTeam.length >= 6) return;
   if (!S._pendingPreviewId) return;
-  if (S._mySelectedTeam.some(x => x.id === S._pendingPreviewId)) return;
+  if (S._mySelectedTeam.some(x => x?.id === S._pendingPreviewId)) return;
+  const freeIdx = S._mySelectedTeam.findIndex(x => x === null);
+  if (freeIdx === -1) return;
   const _c = CREATURES.find(x => x.id === S._pendingPreviewId);
   const ability = S._pendingAbility ?? (_c?.abilities?.[0] ?? null);
   if (_c?.movesPool?.length && S._pendingMoves.length !== 4) return;
-  S._mySelectedTeam.push({ id: S._pendingPreviewId, variant: S._pendingVariant, ability, moves: [...S._pendingMoves] });
+  S._mySelectedTeam[freeIdx] = { id: S._pendingPreviewId, variant: S._pendingVariant, ability, moves: [...S._pendingMoves] };
   _saveTeam();
   _renderTeamSlots();
   _updateConfirmBtn();
@@ -329,7 +362,7 @@ function _addToTeam() {
 }
 
 function _removeFromTeam(slotIdx) {
-  S._mySelectedTeam.splice(slotIdx, 1);
+  S._mySelectedTeam[slotIdx] = null;
   _saveTeam();
   _renderTeamSlots();
   _updateConfirmBtn();
@@ -338,17 +371,45 @@ function _removeFromTeam(slotIdx) {
 }
 
 function _updateConfirmBtn() {
-  const n   = S._mySelectedTeam.length;
+  const n   = S._mySelectedTeam.filter(Boolean).length;
   const btn = document.getElementById('btn-confirm-select');
   btn.disabled    = n < 6 || (!_soloBuilder && S.myConfirmed);
   btn.textContent = _soloBuilder ? `SAVE & EXIT (${n}/6)` : `CONFIRM (${n}/6)`;
 }
 
 function _refreshCardBadges() {
-  const onTeamIds = new Set(S._mySelectedTeam.map(x => x.id));
+  const onTeamIds = new Set(S._mySelectedTeam.filter(Boolean).map(x => x.id));
   document.querySelectorAll('.creature-card').forEach(card => {
     card.classList.toggle('on-team', onTeamIds.has(card.dataset.id));
   });
+}
+
+// Build a short human-readable description from a move's mechanical properties.
+function _moveSummary(m) {
+  const parts = [];
+  if (m.accuracy === null)   parts.push('Always hits');
+  else if (m.accuracy < 1)   parts.push(`${Math.round(m.accuracy * 100)}% acc`);
+  if (m.priority > 0)        parts.push('Priority');
+  if (m.highCrit)            parts.push('High crit');
+  if (m.facade)              parts.push('2× if statused');
+  if (m.recoil)              parts.push(`${Math.round(m.recoil * 100)}% recoil`);
+  if (m.effect) {
+    const pct = m.effect.chance != null && m.effect.chance < 1 ? `${Math.round(m.effect.chance * 100)}% ` : '';
+    const lbl = { burn:'Burns', poison:'Poisons', paralyze:'Paralyzes', freeze:'Freezes',
+                  sleep:'Sleeps', flinch:'Flinch', drain:'Drains HP', heal:'Heals user',
+                  'stat-self':'Boosts self', 'stat-opp':'Drops foe' }[m.effect.type] ?? m.effect.type;
+    parts.push(pct + lbl);
+  }
+  if (m.statEffect?.length) {
+    m.statEffect.forEach(se => {
+      const pct  = se.chance != null && se.chance < 1 ? `${Math.round(se.chance * 100)}% ` : '';
+      const stat = { atk:'ATK', def:'DEF', spd:'SPD' }[se.stat] ?? se.stat;
+      const dir  = se.change > 0 ? '↑' : '↓';
+      const tgt  = se.target === 'self' ? '' : 'Foe ';
+      parts.push(`${pct}${tgt}${stat}${dir}`);
+    });
+  }
+  return parts.join(' · ');
 }
 
 function _selectCard(id) {
@@ -368,8 +429,8 @@ function _selectCard(id) {
   }
   S._pendingPreviewId = id;
 
-  const onTeam       = S._mySelectedTeam.some(x => x.id === id);
-  const teamFull     = S._mySelectedTeam.length >= 6;
+  const onTeam   = S._mySelectedTeam.some(x => x?.id === id);
+  const teamFull = S._mySelectedTeam.filter(Boolean).length >= 6;
   const currentVariant = S._pendingVariant || c.sprite;
 
   const preview = document.getElementById('select-preview');
@@ -399,7 +460,7 @@ function _selectCard(id) {
         <div class="ability-picker">
           <span class="ability-picker-label">ABILITY</span>
           ${c.abilities.map(ab => `
-            <button class="ability-choice-btn${ab === (S._mySelectedTeam.find(x=>x.id===id)?.ability ?? c.abilities[0]) ? ' active' : ''}" data-ability="${esc(ab)}">
+            <button class="ability-choice-btn${ab === (S._mySelectedTeam.find(x=>x?.id===id)?.ability ?? c.abilities[0]) ? ' active' : ''}" data-ability="${esc(ab)}">
               <span class="ability-choice-name">${esc(ab)}</span>
               <span class="ability-choice-desc">${esc(ABILITIES[ab]?.desc ?? '')}</span>
             </button>
@@ -414,10 +475,12 @@ function _selectCard(id) {
               const m = MOVE_POOL[moveName];
               if (!m) return '';
               const sel = S._pendingMoves.includes(moveName);
+              const desc = _moveSummary(m);
               return `<button class="move-pick-btn${sel ? ' active' : ''}" data-move="${esc(moveName)}">
                 <span class="move-pick-name">${esc(moveName)}</span>
                 <span class="type-badge" style="background:${getTypeColor(m.type)}">${m.type}</span>
                 <span class="move-pick-power">${m.power > 0 ? 'PWR ' + m.power : 'STATUS'}</span>
+                ${desc ? `<span class="move-pick-desc">${esc(desc)}</span>` : ''}
               </button>`;
             }).join('')}
           </div>
@@ -440,7 +503,7 @@ function _selectCard(id) {
       }
       const countEl = document.getElementById('mpc-count');
       if (countEl) countEl.textContent = S._pendingMoves.length + '/4';
-      const teamIdx2 = S._mySelectedTeam.findIndex(x => x.id === id);
+      const teamIdx2 = S._mySelectedTeam.findIndex(x => x?.id === id);
       if (teamIdx2 >= 0) { S._mySelectedTeam[teamIdx2].moves = [...S._pendingMoves]; _saveTeam(); }
       const needMoves2 = !!(c.movesPool?.length);
       addBtn.disabled = !onTeam && (teamFull || (needMoves2 && S._pendingMoves.length !== 4));
@@ -455,7 +518,7 @@ function _selectCard(id) {
       S._pendingAbility = ab;
       preview.querySelectorAll('.ability-choice-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      const teamIdx = S._mySelectedTeam.findIndex(x => x.id === id);
+      const teamIdx = S._mySelectedTeam.findIndex(x => x?.id === id);
       if (teamIdx >= 0) { S._mySelectedTeam[teamIdx].ability = ab; _saveTeam(); }
     });
   });
@@ -466,7 +529,7 @@ function _selectCard(id) {
       preview.querySelectorAll('.variant-thumb').forEach(i => i.classList.remove('active'));
       img.classList.add('active');
       document.getElementById('preview-sprite-img').src = S._pendingVariant;
-      const teamIdx = S._mySelectedTeam.findIndex(x => x.id === id);
+      const teamIdx = S._mySelectedTeam.findIndex(x => x?.id === id);
       if (teamIdx >= 0) {
         S._mySelectedTeam[teamIdx].variant = S._pendingVariant;
         _saveTeam();
@@ -483,7 +546,7 @@ function _selectCard(id) {
   addBtn.disabled    = !onTeam && (teamFull || (needMoves && S._pendingMoves.length !== 4));
   addBtn.addEventListener('click', () => {
     if (onTeam) {
-      _removeFromTeam(S._mySelectedTeam.findIndex(x => x.id === id));
+      _removeFromTeam(S._mySelectedTeam.findIndex(x => x?.id === id));
     } else {
       _addToTeam();
       _selectCard(id);
@@ -494,7 +557,7 @@ function _selectCard(id) {
 }
 
 document.getElementById('btn-confirm-select').addEventListener('click', () => {
-  if (S._mySelectedTeam.length < 6) return;
+  if (S._mySelectedTeam.filter(Boolean).length < 6) return;
   if (_soloBuilder) {
     _soloBuilder = false;
     showScreen('lobby');
@@ -551,9 +614,30 @@ function _buildBattleLanes(teamEntries) {
   return lanes;
 }
 
+function _startCountdown(onDone) {
+  const overlay = document.getElementById('battle-countdown');
+  const textEl  = document.getElementById('countdown-text');
+  overlay.classList.remove('hidden');
+  ['3', '2', '1', 'FIGHT!'].forEach((label, i) => {
+    const t = setTimeout(() => {
+      textEl.textContent = label;
+      textEl.classList.remove('countdown-anim');
+      void textEl.offsetWidth; // trigger reflow so animation restarts
+      textEl.classList.add('countdown-anim');
+    }, i * 900);
+    _pendingBattleTimeouts.push(t);
+  });
+  const doneT = setTimeout(() => {
+    overlay.classList.add('hidden');
+    onDone();
+  }, 3700);
+  _pendingBattleTimeouts.push(doneT);
+}
+
 function startBattle(msg) {
   _pendingBattleTimeouts.forEach(clearTimeout);
   _pendingBattleTimeouts = [];
+  document.getElementById('battle-countdown').classList.add('hidden');
 
   const myTeamData  = S.isHost ? msg.hostTeam  : msg.guestTeam;
   const oppTeamData = S.isHost ? msg.guestTeam : msg.hostTeam;
@@ -568,7 +652,7 @@ function startBattle(msg) {
   _renderAllLanes();
   _log(`Battle start! ${S.playerName} vs ${S.opponentName}!`);
 
-  if (msg.events) _playbackBattle(msg.events);
+  if (msg.events) _startCountdown(() => _playbackBattle(msg.events));
 }
 
 function _renderAllLanes() {
