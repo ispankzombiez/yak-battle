@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
-  <script>const PAGE_VERSION = '202608211200';</script>
+  <script>const PAGE_VERSION = '202608211800';</script>
 </head>
 <body>
 
@@ -22,6 +22,49 @@
   </div>
   <!-- hide immediately for returning users before first paint -->
   <script>if(localStorage.getItem('yak-battle-disclaimer')==='agreed')document.getElementById('disclaimer-modal').style.display='none';</script>
+
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <!--  SCREEN: Auth (login / register)                                       -->
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <div id="screen-auth" class="screen active">
+    <h1 class="logo">⚔ YAK BATTLE</h1>
+    <div class="auth-card">
+      <div class="auth-tabs">
+        <button id="auth-tab-login" class="auth-tab-btn active">LOGIN</button>
+        <button id="auth-tab-register" class="auth-tab-btn">REGISTER</button>
+      </div>
+
+      <div id="auth-form-login">
+        <label class="auth-field">
+          <span>EMAIL</span>
+          <input id="auth-login-email" type="email" class="auth-input" placeholder="you@example.com" autocomplete="email">
+        </label>
+        <label class="auth-field">
+          <span>PASSWORD</span>
+          <input id="auth-login-password" type="password" class="auth-input" placeholder="••••••" autocomplete="current-password">
+        </label>
+        <button id="auth-btn-login" class="btn btn-primary" style="width:100%;margin-top:12px">LOGIN</button>
+      </div>
+
+      <div id="auth-form-register" class="hidden">
+        <label class="auth-field">
+          <span>USERNAME</span>
+          <input id="auth-reg-username" type="text" class="auth-input" placeholder="Trainer123" maxlength="16" autocomplete="off" spellcheck="false">
+        </label>
+        <label class="auth-field">
+          <span>EMAIL</span>
+          <input id="auth-reg-email" type="email" class="auth-input" placeholder="you@example.com" autocomplete="email">
+        </label>
+        <label class="auth-field">
+          <span>PASSWORD</span>
+          <input id="auth-reg-password" type="password" class="auth-input" placeholder="Min. 6 characters" autocomplete="new-password">
+        </label>
+        <button id="auth-btn-register" class="btn btn-primary" style="width:100%;margin-top:12px">CREATE ACCOUNT</button>
+      </div>
+
+      <p id="auth-error" class="auth-error"></p>
+    </div>
+  </div>
 
   <!-- Update available panel -->
   <div id="update-panel" class="update-overlay hidden">
@@ -38,21 +81,15 @@
   <!-- ══════════════════════════════════════════════════════════════════════ -->
   <!--  SCREEN: Lobby                                                         -->
   <!-- ══════════════════════════════════════════════════════════════════════ -->
-  <div id="screen-lobby" class="screen active">
+  <div id="screen-lobby" class="screen">
     <h1 class="logo">⚔ YAK BATTLE</h1>
 
     <div class="lobby-inner">
-      <div class="join-row">
-        <input
-          id="player-name"
-          type="text"
-          class="name-input"
-          placeholder="USERNAME"
-          maxlength="16"
-          autocomplete="off"
-        >
-        <button id="btn-manage-team" class="btn btn-outline">🎒 MANAGE TEAM</button>
+      <div class="lobby-name-row">
+        <span id="player-name-display" class="name-display"></span>
+        <button id="btn-logout" class="btn btn-outline btn-sm">LOGOUT</button>
       </div>
+      <button id="btn-manage-team" class="btn btn-outline">🎒 MANAGE TEAM</button>
 
       <button id="btn-host-public"  class="btn btn-primary">⚑ HOST PUBLIC BATTLE</button>
       <button id="btn-host-private" class="btn btn-secondary">🔒 HOST PRIVATE BATTLE</button>
@@ -73,7 +110,9 @@
       </div>
 
       <button id="btn-browse" class="btn btn-outline">📋 BROWSE PUBLIC BATTLES</button>
+      <button id="btn-leaderboard" class="btn btn-outline">🏆 LEADERBOARD</button>
     </div>
+    <div id="battle-counter" class="battle-counter"></div>
   </div>
 
   <!-- ══════════════════════════════════════════════════════════════════════ -->
@@ -251,19 +290,29 @@
     </div>
   </div>
 
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <!--  SCREEN: Leaderboard                                                   -->
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <div id="screen-leaderboard" class="screen">
+    <button id="btn-leaderboard-back" class="btn-back">← BACK</button>
+    <h2>🏆 LEADERBOARD</h2>
+    <div id="leaderboard-list" class="leaderboard-list"></div>
+  </div>
+
   <!-- ── Scripts ──────────────────────────────────────────────────────────── -->
   <!-- Firebase SDK (compat — no ES modules required) -->
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
-  <script src="js/firebase-config.js?v=202608211200"></script>
+  <script src="js/firebase-config.js?v=202608211800"></script>
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-  <script src="js/moves.js?v=202608211200"></script>
-  <script src="js/abilities.js?v=202608211200"></script>
-  <script src="js/creatures.js?v=202608211200"></script>
-  <script src="js/network.js?v=202608211200"></script>
-  <script src="js/game.js?v=202608211200"></script>
-  <script src="js/app.js?v=202608211200"></script>
+  <script src="js/moves.js?v=202608211800"></script>
+  <script src="js/abilities.js?v=202608211800"></script>
+  <script src="js/creatures.js?v=202608211800"></script>
+  <script src="js/network.js?v=202608211800"></script>
+  <script src="js/game.js?v=202608211800"></script>
+  <script src="js/auth.js?v=202608211800"></script>
+  <script src="js/app.js?v=202608211800"></script>
   <script>
     (function () {
       if (localStorage.getItem('yak-battle-disclaimer') === 'agreed') return;

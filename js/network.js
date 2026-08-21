@@ -23,14 +23,12 @@ const _ICE = {
   ],
 };
 
-// ── Firebase SDK (lazy singleton, anonymous auth) ────────────────────────────
+// ── Firebase SDK (lazy singleton) ────────────────────────────────────────────
+// Firebase app + auth are initialised by auth.js before this runs.
 let _db = null;
 
 async function _initFirebase() {
   if (_db) return;
-  if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
-  const auth = firebase.auth();
-  if (!auth.currentUser) await auth.signInAnonymously();
   _db = firebase.database();
 }
 

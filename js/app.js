@@ -37,6 +37,10 @@ const S = {
   _pendingAbility:    null,
   _pendingMoves:      [],
   _oppTeamData:       null,  // [{id, variant, ability, moves}, ...] from opponent's creature-ready
+  _myUsername:        null,  // set after auth
+  _myUid:             null,  // Firebase Auth uid
+  _battleId:          null,  // uuid for current battle (for result confirmation)
+  _opponentUid:       null,  // opponent's Firebase uid
 };
 
 // ── Screen management ─────────────────────────────────────────────────────────
@@ -56,19 +60,8 @@ function esc(str) {
 }
 
 function playerName() {
-  return document.getElementById('player-name').value.trim() || 'Trainer';
+  return S._myUsername || 'Trainer';
 }
-
-// Restore saved username on page load
-(function () {
-  const saved = localStorage.getItem('yak-battle-username');
-  if (saved) document.getElementById('player-name').value = saved;
-})();
-
-document.getElementById('player-name').addEventListener('change', () => {
-  const v = document.getElementById('player-name').value.trim();
-  if (v) localStorage.setItem('yak-battle-username', v);
-});
 
 // ── Team persistence (localStorage) ──────────────────────────────────────────
 
@@ -135,6 +128,10 @@ function handleMessage(msg) {
       startBattle(msg);
       break;
 
+    case 'battle-ack':
+      S._opponentUid = msg.guestUid;
+      break;
+
     case 'rematch-request':
       if (confirm(`${S.opponentName} wants a rematch! Accept?`)) {
         netSend({ type: 'rematch-accept' });
@@ -163,6 +160,18 @@ document.getElementById('btn-exit').addEventListener('click', () => {
   netDisconnect();
   showScreen('lobby');
 });
+
+document.getElementById('btn-logout').addEventListener('click', async () => {
+  netDisconnect();
+  await authLogout();
+});
+
+document.getElementById('btn-leaderboard').addEventListener('click', () => {
+  showScreen('leaderboard');
+  _loadLeaderboard();
+});
+
+document.getElementById('btn-leaderboard-back').addEventListener('click', () => showScreen('lobby'));
 
 document.getElementById('btn-manage-team').addEventListener('click', () => {
   enterCreatureSelect(true);
@@ -212,6 +221,38 @@ document.getElementById('btn-browse').addEventListener('click', () => {
 
 document.getElementById('btn-browse-back').addEventListener('click', () => showScreen('lobby'));
 document.getElementById('btn-refresh').addEventListener('click', loadPublicRooms);
+
+// ── Leaderboard ───────────────────────────────────────────────────────────────
+
+async function _loadLeaderboard() {
+  const el = document.getElementById('leaderboard-list');
+  el.innerHTML = '<p class="empty-msg">Loading…</p>';
+  try {
+    const snap = await firebase.database()
+      .ref('yak-battle/players')
+      .orderByChild('wins')
+      .limitToLast(20)
+      .once('value');
+    if (!snap.exists()) {
+      el.innerHTML = '<p class="empty-msg">No battles recorded yet.</p>';
+      return;
+    }
+    const rows = [];
+    snap.forEach(child => rows.push(child.val()));
+    rows.reverse(); // highest wins first
+    el.innerHTML =
+      '<table class="leaderboard-table"><thead><tr><th>#</th><th>PLAYER</th><th>W</th><th>L</th><th>WIN%</th></tr></thead><tbody>' +
+      rows.map((r, i) => {
+        const total = (r.wins || 0) + (r.losses || 0);
+        const pct   = total > 0 ? Math.round((r.wins || 0) / total * 100) : 0;
+        const hl    = r.username === S._myUsername ? ' class="lb-me"' : '';
+        return `<tr${hl}><td>${i + 1}</td><td>${esc(r.username)}</td><td>${r.wins || 0}</td><td>${r.losses || 0}</td><td>${pct}%</td></tr>`;
+      }).join('') +
+      '</tbody></table>';
+  } catch {
+    el.innerHTML = '<p class="empty-msg">Failed to load leaderboard.</p>';
+  }
+}
 
 document.getElementById('btn-cancel-wait').addEventListener('click', async () => {
   await netDisconnect();
@@ -596,16 +637,33 @@ document.getElementById('btn-confirm-select').addEventListener('click', () => {
 function _maybeStartBattle() {
   if (!S.isHost || !S.myConfirmed || !S.oppConfirmed) return;
   if (!S._oppTeamData) return;
+
+  const seed      = (Math.random() * 0xFFFFFFFF) | 0;
+  const battleId  = (Date.now().toString(36) + Math.random().toString(36).slice(2)).toUpperCase();
+
+  setBattleSeed(seed);
   const hostLanes  = _buildBattleLanes(S._mySelectedTeam);
   const guestLanes = _buildBattleLanes(S._oppTeamData);
   const { events } = resolveFullBattle(hostLanes, guestLanes);
+
+  S._battleId     = battleId;
+  S._opponentUid  = null; // filled when battle-ack arrives
+
   const battleMsg = {
     type:      'battle-start',
     hostTeam:  S._mySelectedTeam,
     guestTeam: S._oppTeamData,
     events,
+    seed,
+    battleId,
+    hostUid:   S._myUid,
   };
   netSend(battleMsg);
+
+  // Increment global battle counter (host only to avoid double-counting)
+  firebase.database().ref('yak-battle/stats/totalBattles')
+    .transaction(n => (n || 0) + 1).catch(() => {});
+
   startBattle(battleMsg);
 }
 
@@ -619,6 +677,65 @@ netSetHandlers({
   },
   onDisconnect: handleDisconnect,
 });
+
+// ── Team validation (anti-cheat Layer 3) ─────────────────────────────────────
+// Returns an error string if anything is illegal, or null if the team is valid.
+function _validateTeam(team) {
+  if (!Array.isArray(team)) return 'Invalid team format';
+  for (const entry of team) {
+    if (!entry) continue;
+    const canonical = CREATURES.find(c => c.id === entry.id);
+    if (!canonical) return `Unknown creature: ${entry.id}`;
+    if (entry.ability && !canonical.abilities?.includes(entry.ability))
+      return `Invalid ability '${entry.ability}' for ${canonical.name}`;
+    if (!Array.isArray(entry.moves) || entry.moves.length !== 4)
+      return `${canonical.name} must have exactly 4 moves`;
+    const validMoves = new Set([
+      ...(canonical.movesPool || []),
+      ...(canonical.moves    || []).map(m => m.name),
+    ]);
+    for (const mv of entry.moves)
+      if (!validMoves.has(mv)) return `'${mv}' is not a valid move for ${canonical.name}`;
+  }
+  return null;
+}
+
+// ── Battle result confirmation (anti-cheat Layer 5) ───────────────────────────
+// Writes own result to Firebase, waits for opponent's matching report,
+// then commits stats via transaction only when both sides agree.
+function _reportBattleResult(won) {
+  if (!S._myUid || !S._battleId || !S._opponentUid) return;
+  const myResult  = won ? 'win' : 'lose';
+  const db        = firebase.database();
+  const resultRef = db.ref('yak-battle/battle-results/' + S._battleId);
+
+  db.ref('yak-battle/battle-results/' + S._battleId + '/' + S._myUid)
+    .set(myResult).catch(() => {});
+
+  // Wait up to 30 s for opponent to also submit
+  const timer = setTimeout(() => resultRef.off('value', onSnapshot), 30000);
+
+  function onSnapshot(snap) {
+    const data = snap.val();
+    if (!data || !data[S._myUid] || !data[S._opponentUid]) return;
+
+    clearTimeout(timer);
+    resultRef.off('value', onSnapshot);
+    resultRef.remove().catch(() => {});
+
+    if (data[S._myUid] === data[S._opponentUid]) {
+      // Both claimed the same side — conflict, no stats updated
+      console.warn('Battle result conflict; stats not recorded.');
+      return;
+    }
+    // Results contradict each other (expected: one win, one lose)
+    const key = data[S._myUid] === 'win' ? 'wins' : 'losses';
+    db.ref(`yak-battle/players/${S._myUid}/${key}`)
+      .transaction(n => (n || 0) + 1).catch(() => {});
+  }
+
+  resultRef.on('value', onSnapshot);
+}
 
 // ── Battle screen (auto-battle) ───────────────────────────────────────────────
 
@@ -657,6 +774,30 @@ function _startCountdown(onDone) {
 }
 
 function startBattle(msg) {
+  // Guest: verify team legality and re-simulate to catch fabricated outcomes
+  if (!S.isHost) {
+    const teamErr = _validateTeam(msg.hostTeam) || _validateTeam(msg.guestTeam);
+    if (teamErr) {
+      netDisconnect();
+      alert('Battle rejected: invalid team detected. (' + teamErr + ')');
+      showScreen('lobby');
+      return;
+    }
+    setBattleSeed(msg.seed);
+    const hL = _buildBattleLanes(msg.hostTeam);
+    const gL = _buildBattleLanes(msg.guestTeam);
+    const { winner: computed } = resolveFullBattle(hL, gL);
+    const received = msg.events?.find(e => e.type === 'game-over')?.winner;
+    if (computed !== received) {
+      netDisconnect();
+      alert('Battle integrity check failed. Opponent may be cheating.');
+      showScreen('lobby');
+      return;
+    }
+    S._battleId    = msg.battleId;
+    S._opponentUid = msg.hostUid;
+    netSend({ type: 'battle-ack', guestUid: S._myUid });
+  }
   _pendingBattleTimeouts.forEach(clearTimeout);
   _pendingBattleTimeouts = [];
   document.getElementById('battle-countdown').classList.add('hidden');
@@ -875,6 +1016,7 @@ function _showGameOver(won, survivorSprite, survivorName) {
   rematchBtn.textContent = '↺ REMATCH';
   rematchBtn.disabled    = false;
   showScreen('gameover');
+  _reportBattleResult(won);
 }
 
 document.getElementById('btn-rematch').addEventListener('click', () => {
@@ -905,3 +1047,20 @@ function _log(html) {
   log.appendChild(line);
   log.scrollTop  = log.scrollHeight;
 }
+
+// ── Auth bootstrap ────────────────────────────────────────────────────────────
+// authInit (from auth.js) fires onLogin each time a valid session is established.
+authInit(function (player) {
+  S._myUsername = player.username;
+  S._myUid      = player.uid;
+  S.playerName  = player.username;
+  document.getElementById('player-name-display').textContent = player.username;
+
+  // Real-time battle counter on the lobby
+  firebase.database().ref('yak-battle/stats/totalBattles').on('value', snap => {
+    const el = document.getElementById('battle-counter');
+    if (el) el.textContent = '\u2694 ' + (snap.val() || 0).toLocaleString() + ' BATTLES FOUGHT';
+  });
+
+  showScreen('lobby');
+});

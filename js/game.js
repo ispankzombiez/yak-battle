@@ -3,6 +3,22 @@
 // The HOST pre-resolves the ENTIRE battle before sending battle-start.
 // Both sides animate the pre-computed event log at 1100 ms per event.
 
+// ── Seeded PRNG (mulberry32) ──────────────────────────────────────────────────
+// Default to Math.random so solo/test code works without a seed.
+let _rng = Math.random.bind(Math);
+
+// Call before resolveFullBattle() to make simulation deterministic.
+// Both host and guest must use the same seed to get identical outcomes.
+function setBattleSeed(seed) {
+  let s = seed >>> 0;
+  _rng = function () {
+    s += 0x6D2B79F5;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 // Legacy contact set — used for moves without a .contact property
 const CONTACT_MOVES = new Set([
   'Sand Slash','Bulldoze','Dig',
@@ -68,9 +84,9 @@ function _calcDamage(atk, move, def) {
   if (def.ability === 'Thick Fat' && (move.type === 'Fire' || move.type === 'Ice')) defVal *= 2;
 
   const base = (move.power * (atkVal / 100)) * (100 / (100 + defVal));
-  const roll = 0.85 + Math.random() * 0.15;
+  const roll = 0.85 + _rng() * 0.15;
 
-  let crit = Math.random() < (move.highCrit ? 0.25 : 0.0625);
+  let crit = _rng() < (move.highCrit ? 0.25 : 0.0625);
   if (def.ability === 'Shell Armor') crit = false;
 
   // Facade: doubles power when attacker is statused
@@ -111,13 +127,13 @@ function _tryAdvance(lanes, laneIdx, side, events) {
 // Does NOT push 'fainted' events — the caller handles those.
 function _applyOneMoveAuto(atk, atkSide, atkLane, def, defSide, defLane, move, events, flinchSet) {
   // Paralysis: 25 % chance can't move
-  if (atk.status === 'paralyze' && Math.random() < 0.25) {
+  if (atk.status === 'paralyze' && _rng() < 0.25) {
     events.push({ type: 'paralyzed', side: atkSide, lane: atkLane, name: atk.name });
     return;
   }
   // Freeze: 20 % chance to thaw; otherwise stuck
   if (atk.status === 'freeze') {
-    if (Math.random() < 0.20) {
+    if (_rng() < 0.20) {
       atk.status = null;
       events.push({ type: 'status-cured', side: atkSide, lane: atkLane, name: atk.name, reason: 'thawed' });
     } else {
@@ -127,7 +143,7 @@ function _applyOneMoveAuto(atk, atkSide, atkLane, def, defSide, defLane, move, e
   }
   // Sleep: 33 % chance to wake; otherwise stuck
   if (atk.status === 'sleep') {
-    if (Math.random() < 0.33) {
+    if (_rng() < 0.33) {
       atk.status = null;
       events.push({ type: 'status-cured', side: atkSide, lane: atkLane, name: atk.name, reason: 'woke-up' });
     } else {
@@ -140,7 +156,7 @@ function _applyOneMoveAuto(atk, atkSide, atkLane, def, defSide, defLane, move, e
   let accuracy = move.accuracy ?? 1;
   if (atk.ability === 'Compound Eyes') accuracy = Math.min(1, accuracy * 1.3);
   if (atk.ability === 'Hustle')        accuracy = accuracy * 0.8;
-  if (accuracy < 1 && Math.random() > accuracy) {
+  if (accuracy < 1 && _rng() > accuracy) {
     events.push({ type: 'missed', attackerSide: atkSide, attackerLane: atkLane, atkName: atk.name, moveName: move.name });
     return;
   }
@@ -177,7 +193,7 @@ function _applyOneMoveAuto(atk, atkSide, atkLane, def, defSide, defLane, move, e
       atk.currentHp = Math.min(atk.maxHp, atk.currentHp + amt);
       events.push({ type: 'heal', side: atkSide, lane: atkLane, name: atk.name, amount: amt, moveName: move.name, hpAfter: atk.currentHp, maxHp: atk.maxHp });
     } else if (eff?.type === 'stat-self') {
-      if (Math.random() < (eff.chance ?? 1.0)) {
+      if (_rng() < (eff.chance ?? 1.0)) {
         for (const { stat, change } of (eff.stages ?? [])) {
           atk.stages[stat] = Math.min(6, Math.max(-6, (atk.stages[stat] ?? 0) + change));
           events.push({ type: 'stat-change', side: atkSide, lane: atkLane, stat, change, byName: atk.name });
@@ -189,7 +205,7 @@ function _applyOneMoveAuto(atk, atkSide, atkLane, def, defSide, defLane, move, e
         events.push({ type: 'stat-change', side: defSide, lane: defLane, stat, change, byName: atk.name });
       }
     } else if (eff && !def.status && ['burn','poison','paralyze','freeze','sleep'].includes(eff.type)) {
-      if (Math.random() < (eff.chance ?? 1.0)) {
+      if (_rng() < (eff.chance ?? 1.0)) {
         def.status = eff.type;
         events.push({ type: 'status-applied', side: defSide, lane: defLane, name: def.name, status: eff.type });
       }
@@ -240,7 +256,7 @@ function _applyOneMoveAuto(atk, atkSide, atkLane, def, defSide, defLane, move, e
   const flinchChance = (move.effect?.type === 'flinch')
     ? (move.effect.chance ?? 0) * (atk.ability === 'Serene Grace' ? 2 : 1)
     : 0;
-  if (def.currentHp > 0 && Math.random() < flinchChance) {
+  if (def.currentHp > 0 && _rng() < flinchChance) {
     flinchSet.add(def);
   }
 
@@ -248,7 +264,7 @@ function _applyOneMoveAuto(atk, atkSide, atkLane, def, defSide, defLane, move, e
   const eff = move.effect;
   if (eff && (eff.type === 'burn' || eff.type === 'poison' || eff.type === 'paralyze' || eff.type === 'freeze' || eff.type === 'sleep') && !def.status && def.currentHp > 0) {
     const chance = (eff.chance ?? 0) * (atk.ability === 'Serene Grace' ? 2 : 1);
-    if (Math.random() < chance) {
+    if (_rng() < chance) {
       def.status = eff.type;
       events.push({ type: 'status-applied', side: defSide, lane: defLane, name: def.name, status: eff.type });
     }
@@ -257,7 +273,7 @@ function _applyOneMoveAuto(atk, atkSide, atkLane, def, defSide, defLane, move, e
   // On-hit stat effects (statEffect array on damaging moves)
   if (move.statEffect && def.currentHp > 0) {
     for (const { target, stat, change, chance = 1.0 } of move.statEffect) {
-      if (Math.random() < chance) {
+      if (_rng() < chance) {
         const who   = target === 'self' ? atk : def;
         const wSide = target === 'self' ? atkSide : defSide;
         const wLane = target === 'self' ? atkLane : defLane;
@@ -275,9 +291,9 @@ function _applyOneMoveAuto(atk, atkSide, atkLane, def, defSide, defLane, move, e
       events.push({ type: 'contact-damage', side: atkSide, lane: atkLane, name: atk.name, amount: rsDmg, ability: 'Rough Skin', defName: def.name, hpAfter: atk.currentHp, maxHp: atk.maxHp });
     }
     if (!atk.status) {
-      if (def.ability === 'Static'       && Math.random() < 0.30) { atk.status = 'paralyze'; events.push({ type: 'status-applied', side: atkSide, lane: atkLane, name: atk.name, status: 'paralyze', ability: 'Static' }); }
-      if (def.ability === 'Flame Body'   && Math.random() < 0.30) { atk.status = 'burn';     events.push({ type: 'status-applied', side: atkSide, lane: atkLane, name: atk.name, status: 'burn',     ability: 'Flame Body' }); }
-      if (def.ability === 'Poison Point' && Math.random() < 0.30) { atk.status = 'poison';   events.push({ type: 'status-applied', side: atkSide, lane: atkLane, name: atk.name, status: 'poison',   ability: 'Poison Point' }); }
+      if (def.ability === 'Static'       && _rng() < 0.30) { atk.status = 'paralyze'; events.push({ type: 'status-applied', side: atkSide, lane: atkLane, name: atk.name, status: 'paralyze', ability: 'Static' }); }
+      if (def.ability === 'Flame Body'   && _rng() < 0.30) { atk.status = 'burn';     events.push({ type: 'status-applied', side: atkSide, lane: atkLane, name: atk.name, status: 'burn',     ability: 'Flame Body' }); }
+      if (def.ability === 'Poison Point' && _rng() < 0.30) { atk.status = 'poison';   events.push({ type: 'status-applied', side: atkSide, lane: atkLane, name: atk.name, status: 'poison',   ability: 'Poison Point' }); }
     }
   }
 
@@ -422,7 +438,7 @@ function resolveFullBattle(hostLanes, guestLanes) {
 
         if (c.currentHp <= 0) continue;
 
-        if (c.ability === 'Shed Skin' && c.status && Math.random() < 0.33) {
+        if (c.ability === 'Shed Skin' && c.status && _rng() < 0.33) {
           c.status = null;
           events.push({ type: 'ability-cure', side, lane: i, name: c.name, ability: 'Shed Skin' });
         }
