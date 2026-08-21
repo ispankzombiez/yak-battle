@@ -26,23 +26,16 @@ const S = {
   playerName:    'Trainer',
   opponentName:  'Opponent',
   isHost:        false,
-  myTeam:        [],    // array of 3 battle creature objects
-  oppTeam:       [],    // array of 3 battle creature objects
-  myActiveIdx:   0,
-  oppActiveIdx:  0,
+  myLanes:       [],    // [[frontBC, backBC|null], ...] × 3
+  oppLanes:      [],
   myConfirmed:   false,
   oppConfirmed:  false,
-  myPendingAction:    null,  // { type: 'move', moveIndex } | { type: 'switch', targetIdx }
-  guestPendingAction: null,  // host only
-  turnActive:         false,
-  myForcedSwitch:     false,
-  oppForcedSwitch:    false,
-  _mySelectedTeam:    [],    // [{id, variant, ability, moves}, ...] built during select screen
+  _mySelectedTeam:    [],    // [{id, variant, ability, moves}, ...] up to 6 entries
   _pendingPreviewId:  null,
   _pendingVariant:    null,
   _pendingAbility:    null,
   _pendingMoves:      [],
-  _oppTeamData:       null,  // [{id, variant, ability}, ...] from opponent's creature-ready
+  _oppTeamData:       null,  // [{id, variant, ability, moves}, ...] from opponent's creature-ready
 };
 
 // ── Screen management ─────────────────────────────────────────────────────────
@@ -95,7 +88,7 @@ function _loadSavedTeam() {
       if (!entry.moves.every(m => MOVE_POOL[m])) return false;
       if (entry.ability && !ABILITIES[entry.ability]) return false;
       return true;
-    }).slice(0, 3);
+    }).slice(0, 6);
   } catch { return []; }
 }
 
@@ -137,35 +130,6 @@ function handleMessage(msg) {
 
     case 'battle-start':
       startBattle(msg);
-      break;
-
-    case 'move':
-      if (S.isHost) {
-        S.guestPendingAction = msg.action;
-        _tryHostResolve();
-      }
-      break;
-
-    case 'forced-switch':
-      // Opponent chose a new creature after their mon fainted
-      S.oppActiveIdx    = msg.targetIdx;
-      S.oppForcedSwitch = false;
-      // Apply Intimidate from opponent's incoming creature onto my active
-      const incomingOpp = S.oppTeam[msg.targetIdx];
-      if (incomingOpp.ability === 'Intimidate') {
-        const myActive = S.myTeam[S.myActiveIdx];
-        if (!myActive.stages) myActive.stages = { atk:0, def:0, spd:0 };
-        myActive.stages.atk = Math.max(-6, (myActive.stages.atk ?? 0) - 1);
-        _log(`${incomingOpp.name}'s <b>Intimidate</b> lowered ${myActive.name}'s Attack!`);
-      }
-      _renderActiveCreatures();
-      _renderTeamIndicators();
-      _log(`${S.opponentName} sent out <b>${esc(S.oppTeam[msg.targetIdx].name)}</b>!`);
-      _checkReadyForNextTurn();
-      break;
-
-    case 'turn-result':
-      if (!S.isHost) _applyResult(msg);
       break;
 
     case 'rematch-request':
@@ -322,18 +286,21 @@ function enterCreatureSelect(solo = false) {
   });
 }
 
+const SLOT_LABELS = ['L1 FRONT', 'L2 FRONT', 'L3 FRONT', 'L1 BACK', 'L2 BACK', 'L3 BACK'];
+
 function _renderTeamSlots() {
   const slotsEl = document.getElementById('team-slots');
   slotsEl.innerHTML = '';
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 6; i++) {
     const entry = S._mySelectedTeam[i];
     const div   = document.createElement('div');
     div.className = 'team-slot' + (entry ? ' filled' : '');
     if (entry) {
       const c = CREATURES.find(x => x.id === entry.id);
       div.innerHTML = `
+        <span class="slot-label">${SLOT_LABELS[i]}</span>
         <img src="${entry.variant || c.sprite}" alt="${esc(c.name)}">
-        <span>${esc(c.name)}</span>
+        <span class="slot-name">${esc(c.name)}</span>
         <button class="slot-remove" data-slot="${i}" title="Remove">✕</button>
       `;
       div.querySelector('.slot-remove').addEventListener('click', (e) => {
@@ -341,14 +308,14 @@ function _renderTeamSlots() {
         _removeFromTeam(i);
       });
     } else {
-      div.innerHTML = `<span class="slot-num">${i + 1}</span>`;
+      div.innerHTML = `<span class="slot-label">${SLOT_LABELS[i]}</span><span class="slot-num">${i + 1}</span>`;
     }
     slotsEl.appendChild(div);
   }
 }
 
 function _addToTeam() {
-  if (S._mySelectedTeam.length >= 3) return;
+  if (S._mySelectedTeam.length >= 6) return;
   if (!S._pendingPreviewId) return;
   if (S._mySelectedTeam.some(x => x.id === S._pendingPreviewId)) return;
   const _c = CREATURES.find(x => x.id === S._pendingPreviewId);
@@ -373,8 +340,8 @@ function _removeFromTeam(slotIdx) {
 function _updateConfirmBtn() {
   const n   = S._mySelectedTeam.length;
   const btn = document.getElementById('btn-confirm-select');
-  btn.disabled    = n < 3 || (!_soloBuilder && S.myConfirmed);
-  btn.textContent = _soloBuilder ? `SAVE & EXIT (${n}/3)` : `CONFIRM (${n}/3)`;
+  btn.disabled    = n < 6 || (!_soloBuilder && S.myConfirmed);
+  btn.textContent = _soloBuilder ? `SAVE & EXIT (${n}/6)` : `CONFIRM (${n}/6)`;
 }
 
 function _refreshCardBadges() {
@@ -402,7 +369,7 @@ function _selectCard(id) {
   S._pendingPreviewId = id;
 
   const onTeam       = S._mySelectedTeam.some(x => x.id === id);
-  const teamFull     = S._mySelectedTeam.length >= 3;
+  const teamFull     = S._mySelectedTeam.length >= 6;
   const currentVariant = S._pendingVariant || c.sprite;
 
   const preview = document.getElementById('select-preview');
@@ -527,7 +494,7 @@ function _selectCard(id) {
 }
 
 document.getElementById('btn-confirm-select').addEventListener('click', () => {
-  if (S._mySelectedTeam.length < 3) return;
+  if (S._mySelectedTeam.length < 6) return;
   if (_soloBuilder) {
     _soloBuilder = false;
     showScreen('lobby');
@@ -544,10 +511,14 @@ document.getElementById('btn-confirm-select').addEventListener('click', () => {
 function _maybeStartBattle() {
   if (!S.isHost || !S.myConfirmed || !S.oppConfirmed) return;
   if (!S._oppTeamData) return;
+  const hostLanes  = _buildBattleLanes(S._mySelectedTeam);
+  const guestLanes = _buildBattleLanes(S._oppTeamData);
+  const { events } = resolveFullBattle(hostLanes, guestLanes);
   const battleMsg = {
     type:      'battle-start',
     hostTeam:  S._mySelectedTeam,
     guestTeam: S._oppTeamData,
+    events,
   };
   netSend(battleMsg);
   startBattle(battleMsg);
@@ -564,403 +535,224 @@ netSetHandlers({
   onDisconnect: handleDisconnect,
 });
 
-// ── Battle screen ─────────────────────────────────────────────────────────────
+// ── Battle screen (auto-battle) ───────────────────────────────────────────────
+
+// Build [[frontBC, backBC|null], ...] × 3 from a flat 6-entry team array.
+// Layout: indices 0,1,2 = fronts (lanes 0-2); indices 3,4,5 = backs (lanes 0-2).
+function _buildBattleLanes(teamEntries) {
+  const lanes = [];
+  for (let i = 0; i < 3; i++) {
+    const fe = teamEntries[i];
+    const be = teamEntries[i + 3];
+    const frontBC = fe ? buildBattleCreature(CREATURES.find(x => x.id === fe.id), fe.variant, fe.ability, fe.moves) : null;
+    const backBC  = be ? buildBattleCreature(CREATURES.find(x => x.id === be.id), be.variant, be.ability, be.moves) : null;
+    lanes.push([frontBC, backBC]);
+  }
+  return lanes;
+}
 
 function startBattle(msg) {
-  // Cancel any leftover event callbacks from a previous battle
   _pendingBattleTimeouts.forEach(clearTimeout);
   _pendingBattleTimeouts = [];
-  document.getElementById('battle-waiting').classList.add('hidden');
 
   const myTeamData  = S.isHost ? msg.hostTeam  : msg.guestTeam;
   const oppTeamData = S.isHost ? msg.guestTeam : msg.hostTeam;
 
-  S.myTeam  = myTeamData.map(entry => {
-    const c = CREATURES.find(x => x.id === entry.id);
-    return buildBattleCreature(c, entry.variant || c.sprite, entry.ability, entry.moves);
-  });
-  S.oppTeam = oppTeamData.map(entry => {
-    const c = CREATURES.find(x => x.id === entry.id);
-    return buildBattleCreature(c, entry.variant || c.sprite, entry.ability, entry.moves);
-  });
-
-  S.myActiveIdx        = 0;
-  S.oppActiveIdx       = 0;
-  S.myPendingAction    = null;
-  S.guestPendingAction = null;
-  S.turnActive         = false;
-  S.myForcedSwitch     = false;
-  S.oppForcedSwitch    = false;
+  S.myLanes  = _buildBattleLanes(myTeamData);
+  S.oppLanes = _buildBattleLanes(oppTeamData);
 
   showScreen('battle');
   document.getElementById('battle-log').innerHTML = '';
-  _renderBattleUI();
-  _log(`Battle start! ${S.playerName} vs ${S.opponentName}!`);
-  _setBattleActionsEnabled(true);
-}
-
-function _renderBattleUI() {
-  _renderActiveCreatures();
-  _renderMoveButtons();
-  _renderTeamIndicators();
-}
-
-function _renderActiveCreatures() {
-  const my  = S.myTeam[S.myActiveIdx];
-  const opp = S.oppTeam[S.oppActiveIdx];
-
-  document.getElementById('opp-creature-name').textContent = opp.name;
-  document.getElementById('opp-trainer-name').textContent  = S.opponentName;
-  _setTypeBadge('opp-type-badge', opp.type);
-  document.getElementById('opp-sprite').src = opp.sprite;
-  document.getElementById('opp-sprite').classList.remove('fainted');
-  _updateHpBar('opp', opp.currentHp, opp.maxHp);
-  _updateStatusBadge('opp', opp.status);
-  _updateAbilityBadge('opp', opp.ability);
-
-  document.getElementById('my-creature-name').textContent = my.name;
   document.getElementById('my-trainer-name').textContent  = S.playerName;
-  _setTypeBadge('my-type-badge', my.type);
-  document.getElementById('my-sprite').src = my.sprite;
-  document.getElementById('my-sprite').classList.remove('fainted');
-  _updateHpBar('my', my.currentHp, my.maxHp);
-  _updateStatusBadge('my', my.status);
-  _updateAbilityBadge('my', my.ability);
+  document.getElementById('opp-trainer-name').textContent = S.opponentName;
+  _renderAllLanes();
+  _log(`Battle start! ${S.playerName} vs ${S.opponentName}!`);
+
+  if (msg.events) _playbackBattle(msg.events);
 }
 
-function _renderMoveButtons() {
-  const my = S.myTeam[S.myActiveIdx];
-  const container = document.getElementById('move-buttons');
-  container.innerHTML = '';
-  my.moves.forEach((move, i) => {
-    const btn = document.createElement('button');
-    btn.className = 'move-btn';
-    btn.dataset.index = i;
-    btn.innerHTML = `
-      <span class="move-btn-name">${esc(move.name)}</span>
-      <span class="type-badge move-btn-type" style="background:${getTypeColor(move.type)}">${move.type}</span>
-      <span class="move-btn-power">${move.power > 0 ? `PWR ${move.power}` : 'STATUS'}</span>
-    `;
-    btn.addEventListener('click', () => _onActionPicked({ type: 'move', moveIndex: i }));
-    container.appendChild(btn);
-  });
-}
-
-function _renderTeamIndicators() {
-  for (const [prefix, team, activeIdx] of [['my', S.myTeam, S.myActiveIdx], ['opp', S.oppTeam, S.oppActiveIdx]]) {
-    const el = document.getElementById(prefix + '-team-indicator');
-    if (!el) continue;
-    el.innerHTML = team.map((c, i) => {
-      const cls = c.currentHp <= 0 ? 'fainted' : i === activeIdx ? 'active' : 'alive';
-      return `<span class="team-dot ${cls}" title="${esc(c.name)}"></span>`;
-    }).join('');
+function _renderAllLanes() {
+  for (let i = 0; i < 3; i++) {
+    _setLaneFront('my',  i, S.myLanes[i][0]);
+    _setLaneFront('opp', i, S.oppLanes[i][0]);
+    const mbEl = document.getElementById(`my-lane-${i}-back-sprite`);
+    if (mbEl) { mbEl.src = S.myLanes[i][1]?.sprite ?? ''; mbEl.classList.toggle('hidden', !S.myLanes[i][1]); }
+    const obEl = document.getElementById(`opp-lane-${i}-back-sprite`);
+    if (obEl) { obEl.src = S.oppLanes[i][1]?.sprite ?? ''; obEl.classList.toggle('hidden', !S.oppLanes[i][1]); }
   }
 }
 
-function _onActionPicked(action) {
-  if (S.turnActive) return;
-  S.turnActive      = true;
-  S.myPendingAction = action;
-  _setBattleActionsEnabled(false);
-  document.getElementById('battle-waiting').classList.remove('hidden');
-
-  if (S.isHost) {
-    _tryHostResolve();
-  } else {
-    netSend({ type: 'move', action });
-  }
+function _setLaneFront(prefix, laneIdx, bc) {
+  const sprEl  = document.getElementById(`${prefix}-lane-${laneIdx}-front-sprite`);
+  const nameEl = document.getElementById(`${prefix}-lane-${laneIdx}-front-name`);
+  if (sprEl)  { sprEl.src = bc?.sprite ?? ''; sprEl.classList.toggle('hidden', !bc); sprEl.classList.remove('fainted'); }
+  if (nameEl) nameEl.textContent = bc?.name ?? '';
+  if (bc) _updateLaneHpBar(prefix, laneIdx, bc.currentHp, bc.maxHp);
 }
 
-function _tryHostResolve() {
-  if (S.myPendingAction === null || S.guestPendingAction === null) return;
-  const result = resolveTurn(
-    S.myTeam, S.oppTeam,
-    S.myActiveIdx, S.oppActiveIdx,
-    S.myPendingAction, S.guestPendingAction
-  );
-  S.myPendingAction    = null;
-  S.guestPendingAction = null;
-  netSend({ type: 'turn-result', ...result });
-  _applyResult(result);
+function _updateLaneHpBar(prefix, laneIdx, hp, maxHp) {
+  const fill = document.getElementById(`${prefix}-lane-${laneIdx}-front-hp`);
+  if (!fill) return;
+  const pct = maxHp > 0 ? Math.max(0, hp / maxHp) : 0;
+  fill.style.width = (pct * 100).toFixed(1) + '%';
+  fill.className = 'hp-fill ' + (pct > 0.5 ? 'hp-high' : pct > 0.25 ? 'hp-mid' : 'hp-low');
 }
 
-function _applyResult(result) {
-  document.getElementById('battle-waiting').classList.add('hidden');
-
-  const myTeamHp      = S.isHost ? result.hostTeamHp      : result.guestTeamHp;
-  const oppTeamHp     = S.isHost ? result.guestTeamHp     : result.hostTeamHp;
-  const myTeamStatus  = S.isHost ? result.hostTeamStatus  : result.guestTeamStatus;
-  const oppTeamStatus = S.isHost ? result.guestTeamStatus : result.hostTeamStatus;
-
-  myTeamHp.forEach((hp, i)      => { S.myTeam[i].currentHp  = hp; });
-  oppTeamHp.forEach((hp, i)     => { S.oppTeam[i].currentHp = hp; });
-  myTeamStatus.forEach((st, i)  => { S.myTeam[i].status     = st; });
-  oppTeamStatus.forEach((st, i) => { S.oppTeam[i].status    = st; });
-
-  // Apply stat stages and ability state returned by host
-  const myStages     = S.isHost ? result.hostTeamStages     : result.guestTeamStages;
-  const oppStages    = S.isHost ? result.guestTeamStages    : result.hostTeamStages;
-  const myAbilState  = S.isHost ? result.hostTeamAbilState  : result.guestTeamAbilState;
-  const oppAbilState = S.isHost ? result.guestTeamAbilState : result.hostTeamAbilState;
-  if (myStages)     myStages.forEach((s, i)     => { S.myTeam[i].stages = s; });
-  if (oppStages)    oppStages.forEach((s, i)    => { S.oppTeam[i].stages = s; });
-  if (myAbilState)  myAbilState.forEach((s, i)  => { Object.assign(S.myTeam[i],  s); });
-  if (oppAbilState) oppAbilState.forEach((s, i) => { Object.assign(S.oppTeam[i], s); });
-
-  // Reflect voluntary switches that happened during the turn
-  S.myActiveIdx  = S.isHost ? result.hostActiveIdx  : result.guestActiveIdx;
-  S.oppActiveIdx = S.isHost ? result.guestActiveIdx : result.hostActiveIdx;
-
+function _playbackBattle(events) {
   let delay = 0;
-  result.events.forEach(ev => {
-    _pendingBattleTimeouts.push(setTimeout(() => _showEvent(ev), delay));
-    delay += 800;
-  });
-
-  _pendingBattleTimeouts.push(setTimeout(() => {
-    _renderActiveCreatures();
-    _renderTeamIndicators();
-
-    const goEvent = result.events.find(e => e.type === 'game-over');
-    if (goEvent) {
-      const iWin = (goEvent.winner === 'host') === S.isHost;
-      _pendingBattleTimeouts.push(setTimeout(() => _showGameOver(iWin), 800));
-      return;
-    }
-
-    const myFainted  = S.myTeam[S.myActiveIdx].currentHp  <= 0;
-    const oppFainted = S.oppTeam[S.oppActiveIdx].currentHp <= 0;
-    S.myForcedSwitch  = myFainted  && S.myTeam.some(c  => c.currentHp > 0);
-    S.oppForcedSwitch = oppFainted && S.oppTeam.some(c => c.currentHp > 0);
-
-    if (S.myForcedSwitch) {
-      _showSwitchPanel(true);
-    } else {
-      _checkReadyForNextTurn();
-    }
-  }, delay + 200));
-}
-
-function _checkReadyForNextTurn() {
-  if (S.myForcedSwitch || S.oppForcedSwitch) return;
-  S.turnActive      = false;
-  S.myPendingAction = null;
-  _setBattleActionsEnabled(true);
-  _renderMoveButtons();
-}
-
-function _showSwitchPanel(forced) {
-  const panel     = document.getElementById('switch-panel');
-  const options   = document.getElementById('switch-options');
-  const forcedMsg = document.getElementById('switch-forced-msg');
-  const cancelBtn = document.getElementById('btn-cancel-switch');
-
-  forcedMsg.classList.toggle('hidden', !forced);
-  cancelBtn.classList.toggle('hidden', forced);
-
-  options.innerHTML = '';
-  S.myTeam.forEach((c, i) => {
-    if (i === S.myActiveIdx) return;
-    const btn = document.createElement('button');
-    btn.className = 'switch-option-btn';
-    btn.disabled  = c.currentHp <= 0;
-    btn.innerHTML = `
-      <img src="${c.sprite}" alt="${esc(c.name)}">
-      <span class="switch-name">${esc(c.name)}</span>
-      <span class="switch-hp">${Math.max(0, c.currentHp)}/${c.maxHp} HP</span>
-    `;
-    btn.addEventListener('click', () => _performSwitch(i, forced));
-    options.appendChild(btn);
-  });
-
-  panel.classList.remove('hidden');
-  _setBattleActionsEnabled(false);
-}
-
-function _performSwitch(targetIdx, forced) {
-  document.getElementById('switch-panel').classList.add('hidden');
-
-  if (forced) {
-    S.myActiveIdx    = targetIdx;
-    S.myForcedSwitch = false;
-    // Apply Intimidate from incoming creature onto opponent's active
-    const incomingMy = S.myTeam[targetIdx];
-    if (incomingMy.ability === 'Intimidate') {
-      const oppActive = S.oppTeam[S.oppActiveIdx];
-      if (!oppActive.stages) oppActive.stages = { atk:0, def:0, spd:0 };
-      oppActive.stages.atk = Math.max(-6, (oppActive.stages.atk ?? 0) - 1);
-      _log(`${incomingMy.name}'s <b>Intimidate</b> lowered ${oppActive.name}'s Attack!`);
-    }
-    netSend({ type: 'forced-switch', targetIdx });
-    _renderActiveCreatures();
-    _renderMoveButtons();
-    _renderTeamIndicators();
-    _log(`${S.playerName} sent out <b>${esc(S.myTeam[targetIdx].name)}</b>!`);
-    _checkReadyForNextTurn();
-  } else {
-    _onActionPicked({ type: 'switch', targetIdx });
+  for (const ev of events) {
+    const t = setTimeout(() => _showBattleEvent(ev), delay);
+    _pendingBattleTimeouts.push(t);
+    delay += 1100;
   }
 }
 
-document.getElementById('btn-switch').addEventListener('click', () => {
-  if (S.turnActive) return;
-  _showSwitchPanel(false);
-});
+function _lungeAutoSprite(prefix, lane) {
+  const el = document.getElementById(`${prefix}-lane-${lane}-front-sprite`);
+  if (!el) return;
+  const cls = prefix === 'opp' ? 'lunge-flip' : 'lunge';
+  el.classList.add(cls);
+  setTimeout(() => el.classList.remove(cls), 480);
+}
 
-document.getElementById('btn-cancel-switch').addEventListener('click', () => {
-  document.getElementById('switch-panel').classList.add('hidden');
-  _setBattleActionsEnabled(true);
-});
+function _impactAutoSprite(prefix, lane) {
+  const el = document.getElementById(`${prefix}-lane-${lane}-front-sprite`);
+  if (!el) return;
+  el.classList.add('impact-flash', 'hit-shake');
+  setTimeout(() => el.classList.remove('impact-flash', 'hit-shake'), 420);
+}
 
 // ── Battle event display ──────────────────────────────────────────────────────
 
-function _showEvent(ev) {
-  const myActive  = S.myTeam[S.myActiveIdx];
-  const oppActive = S.oppTeam[S.oppActiveIdx];
+function _showBattleEvent(ev) {
+  const mySide = S.isHost ? 'host' : 'guest';
 
   switch (ev.type) {
-    case 'switch': {
-      const isMe  = (ev.side === 'host') === S.isHost;
-      const team  = isMe ? S.myTeam : S.oppTeam;
-      const trainer = isMe ? S.playerName : S.opponentName;
-      _log(`${trainer} switched in <b>${esc(team[ev.toIdx].name)}</b>!`);
-      // Swap sprite in sync with the log line
-      _renderActiveCreatures();
-      const spriteEl = document.getElementById((isMe ? 'my' : 'opp') + '-sprite');
-      spriteEl.classList.add('entering');
-      setTimeout(() => spriteEl.classList.remove('entering'), 500);
-      break;
-    }
-    case 'no-effect': {
-      const atkIsMe = (ev.attacker === 'host') === S.isHost;
-      const name    = atkIsMe ? myActive.name : oppActive.name;
-      _log(`${name} used <b>${esc(ev.moveName)}</b>… but it had no effect!`);
-      break;
-    }
     case 'damage': {
-      const atkIsMe = (ev.attacker === 'host') === S.isHost;
-      const defIsMe = (ev.defender === 'host') === S.isHost;
-      const atkName = atkIsMe ? myActive.name : oppActive.name;
-      const defName = defIsMe ? myActive.name : oppActive.name;
-      let msg = `${atkName} used <b>${esc(ev.moveName)}</b>! ${defName} took <b>${ev.damage}</b> damage.`;
+      const atkIsMe = ev.attackerSide === mySide;
+      const defIsMe = ev.defenderSide === mySide;
+      const atkPfx  = atkIsMe ? 'my' : 'opp';
+      const defPfx  = defIsMe ? 'my' : 'opp';
+      let msg = `${esc(ev.atkName)} used <b>${esc(ev.moveName)}</b>! ${esc(ev.defName)} took <b>${ev.damage}</b> dmg.`;
       if (ev.isCrit) msg += ' <em>Critical hit!</em>';
       if (ev.effectiveness > 1)  msg += ' <em>Super effective!</em>';
-      if (ev.effectiveness < 1)  msg += ' <em>Not very effective…</em>';
+      if (ev.effectiveness < 1 && ev.effectiveness > 0) msg += ' <em>Not very effective…</em>';
       _log(msg);
-      _lungeSprite(atkIsMe ? 'my' : 'opp');
-      setTimeout(() => _impactSprite(defIsMe ? 'my' : 'opp'), 220);
-      break;
-    }
-    case 'missed':
-      _log(`${esc(ev.moveName)} missed!`);
-      break;
-    case 'heal': {
-      const isMe = (ev.target === 'host') === S.isHost;
-      const name = isMe ? myActive.name : oppActive.name;
-      _log(`${name} used <b>${esc(ev.moveName)}</b> and recovered <b>${ev.amount}</b> HP!`);
-      break;
-    }
-    case 'drain': {
-      const isMe = (ev.target === 'host') === S.isHost;
-      const name = isMe ? myActive.name : oppActive.name;
-      _log(`${name} drained <b>${ev.amount}</b> HP!`);
-      break;
-    }
-    case 'status-applied': {
-      const isMe  = (ev.target === 'host') === S.isHost;
-      const name  = isMe ? myActive.name : oppActive.name;
-      const label = { burn: 'burned 🔥', poison: 'poisoned ☠', paralyze: 'paralyzed ⚡' }[ev.status];
-      _log(`${name} was ${label}!`);
-      break;
-    }
-    case 'status-damage': {
-      const isMe = (ev.target === 'host') === S.isHost;
-      const name = isMe ? myActive.name : oppActive.name;
-      _log(`${name} took <b>${ev.amount}</b> damage from ${ev.status}!`);
-      break;
-    }
-    case 'paralyzed': {
-      const isMe = (ev.target === 'host') === S.isHost;
-      const name = isMe ? myActive.name : oppActive.name;
-      _log(`${name} is paralyzed and couldn't move!`);
-      break;
-    }
-    case 'flinched': {
-      const isMe = (ev.target === 'host') === S.isHost;
-      const name = isMe ? myActive.name : oppActive.name;
-      _log(`${name} flinched and couldn't move!`);
-      break;
-    }
-    case 'cant-move': {
-      const isMe = (ev.target === 'host') === S.isHost;
-      const name = isMe ? myActive.name : oppActive.name;
-      _log(ev.reason === 'frozen' ? `${name} is frozen solid and can't move!` : `${name} is fast asleep!`);
-      break;
-    }
-    case 'status-cured': {
-      const isMe = (ev.target === 'host') === S.isHost;
-      const name = isMe ? myActive.name : oppActive.name;
-      _log(ev.reason === 'thawed' ? `${name} thawed out!` : `${name} woke up!`);
-      break;
-    }
-    case 'recoil': {
-      const isMe = (ev.target === 'host') === S.isHost;
-      const name = isMe ? myActive.name : oppActive.name;
-      _log(`${name} was hurt by recoil! (${ev.amount} dmg)`);
+      _updateLaneHpBar(defPfx, ev.defenderLane, ev.defHpAfter, ev.defMaxHp);
+      _lungeAutoSprite(atkPfx, ev.attackerLane);
+      setTimeout(() => _impactAutoSprite(defPfx, ev.defenderLane), 220);
       break;
     }
     case 'fainted': {
-      const isMe = (ev.target === 'host') === S.isHost;
-      const team = isMe ? S.myTeam : S.oppTeam;
-      const name = (ev.teamIdx != null ? team[ev.teamIdx] : null)?.name
-                 ?? (isMe ? myActive.name : oppActive.name);
-      _log(`<b>${name} fainted!</b>`);
-      document.getElementById(isMe ? 'my-sprite' : 'opp-sprite').classList.add('fainted');
+      const isMe = ev.side === mySide;
+      const pfx  = isMe ? 'my' : 'opp';
+      _log(`<b>${esc(ev.name)} fainted!</b>`);
+      const sprEl = document.getElementById(`${pfx}-lane-${ev.lane}-front-sprite`);
+      if (sprEl) sprEl.classList.add('fainted');
+      _updateLaneHpBar(pfx, ev.lane, 0, 1);
       break;
     }
-    case 'stat-change': {
-      const isMe = (ev.target === 'host') === S.isHost;
-      const name = ev.byName ?? (isMe ? myActive.name : oppActive.name);
-      const labels = { atk: 'Attack', def: 'Defense', spd: 'Speed' };
-      const dir = ev.change > 0 ? 'rose' : 'fell';
+    case 'advance': {
+      const isMe = ev.side === mySide;
+      const pfx  = isMe ? 'my' : 'opp';
+      _log(`${esc(ev.name)} advanced to the front!`);
+      const frontEl = document.getElementById(`${pfx}-lane-${ev.lane}-front-sprite`);
+      const backEl  = document.getElementById(`${pfx}-lane-${ev.lane}-back-sprite`);
+      const nameEl  = document.getElementById(`${pfx}-lane-${ev.lane}-front-name`);
+      if (frontEl) { frontEl.src = ev.sprite; frontEl.classList.remove('fainted', 'hidden'); frontEl.classList.add('entering'); setTimeout(() => frontEl.classList.remove('entering'), 500); }
+      if (backEl)  backEl.classList.add('hidden');
+      if (nameEl)  nameEl.textContent = ev.name;
+      if (ev.hpAfter != null) _updateLaneHpBar(pfx, ev.lane, ev.hpAfter, ev.maxHp);
+      break;
+    }
+    case 'missed':
+      _log(`${esc(ev.atkName)}'s <b>${esc(ev.moveName)}</b> missed!`);
+      break;
+    case 'no-effect':
+      _log(`${esc(ev.atkName)} used <b>${esc(ev.moveName)}</b>… but it had no effect!`);
+      break;
+    case 'heal': {
+      const isMe = ev.side === mySide;
+      _log(`${esc(ev.name)} used <b>${esc(ev.moveName)}</b> and recovered <b>${ev.amount}</b> HP!`);
+      _updateLaneHpBar(isMe ? 'my' : 'opp', ev.lane, ev.hpAfter, ev.maxHp);
+      break;
+    }
+    case 'drain': {
+      const isMe = ev.side === mySide;
+      _log(`${esc(ev.name)} drained <b>${ev.amount}</b> HP!`);
+      _updateLaneHpBar(isMe ? 'my' : 'opp', ev.lane, ev.hpAfter, ev.maxHp);
+      break;
+    }
+    case 'status-applied': {
+      const label = { burn: 'burned 🔥', poison: 'poisoned ☠', paralyze: 'paralyzed ⚡', freeze: 'frozen ❄', sleep: 'put to sleep 💤' }[ev.status] ?? ev.status;
       const suffix = ev.ability ? ` (${ev.ability})` : '';
-      _log(`${name}'s <b>${labels[ev.stat] ?? ev.stat}</b> ${dir}!${suffix}`);
+      _log(`${esc(ev.name)} was ${label}!${suffix}`);
       break;
     }
-    case 'ability-heal': {
-      const isMe = (ev.target === 'host') === S.isHost;
-      const c = (ev.teamIdx != null ? (isMe ? S.myTeam : S.oppTeam)[ev.teamIdx] : null)
-              ?? (isMe ? myActive : oppActive);
-      _log(`${c.name} recovered <b>${ev.amount}</b> HP! (${ev.ability})`);
+    case 'status-damage': {
+      const isMe = ev.side === mySide;
+      _log(`${esc(ev.name)} took <b>${ev.amount}</b> damage from ${ev.status}!`);
+      _updateLaneHpBar(isMe ? 'my' : 'opp', ev.lane, ev.hpAfter, ev.maxHp);
       break;
     }
-    case 'ability-cure': {
-      const isMe = (ev.target === 'host') === S.isHost;
-      const c = (ev.teamIdx != null ? (isMe ? S.myTeam : S.oppTeam)[ev.teamIdx] : null)
-              ?? (isMe ? myActive : oppActive);
-      _log(`${c.name}'s status was cured by <b>${ev.ability}</b>!`);
+    case 'paralyzed':
+      _log(`${esc(ev.name)} is paralyzed and couldn't move!`);
       break;
-    }
-    case 'ability-absorb': {
-      const isMe = (ev.target === 'host') === S.isHost;
-      const name = isMe ? myActive.name : oppActive.name;
-      if (ev.healAmount) {
-        _log(`${name} absorbed ${esc(ev.moveName)} and recovered <b>${ev.healAmount}</b> HP! (${ev.ability})`);
-      } else {
-        _log(`${name}'s <b>${ev.ability}</b> absorbed ${esc(ev.moveName)}!`);
-      }
+    case 'flinched':
+      _log(`${esc(ev.name)} flinched and couldn't move!`);
       break;
-    }
-    case 'ability-triggered': {
-      const isMe = (ev.target === 'host') === S.isHost;
-      const name = isMe ? myActive.name : oppActive.name;
-      _log(`${name} held on with <b>${ev.ability}</b>!`);
+    case 'cant-move':
+      _log(ev.reason === 'frozen' ? `${esc(ev.name)} is frozen solid!` : `${esc(ev.name)} is fast asleep!`);
+      break;
+    case 'status-cured':
+      _log(ev.reason === 'thawed' ? `${esc(ev.name)} thawed out!` : `${esc(ev.name)} woke up!`);
+      break;
+    case 'recoil': {
+      const isMe = ev.side === mySide;
+      _log(`${esc(ev.name)} was hurt by recoil! (${ev.amount} dmg)`);
+      _updateLaneHpBar(isMe ? 'my' : 'opp', ev.lane, ev.hpAfter, ev.maxHp);
       break;
     }
     case 'contact-damage': {
-      const isMe = (ev.target === 'host') === S.isHost;
-      const name = isMe ? myActive.name : oppActive.name;
-      _log(`${name} was hurt by ${ev.defName}'s <b>${ev.ability}</b>! (${ev.amount} dmg)`);
+      const isMe = ev.side === mySide;
+      _log(`${esc(ev.name)} was hurt by ${esc(ev.defName)}'s <b>${ev.ability}</b>! (${ev.amount} dmg)`);
+      _updateLaneHpBar(isMe ? 'my' : 'opp', ev.lane, ev.hpAfter, ev.maxHp);
+      break;
+    }
+    case 'stat-change': {
+      const name = ev.byName ?? '???';
+      const labels = { atk: 'Attack', def: 'Defense', spd: 'Speed' };
+      const dir = ev.change > 0 ? 'rose' : 'fell';
+      const suffix = ev.ability ? ` (${ev.ability})` : '';
+      _log(`${esc(name)}'s <b>${labels[ev.stat] ?? ev.stat}</b> ${dir}!${suffix}`);
+      break;
+    }
+    case 'ability-heal': {
+      const isMe = ev.side === mySide;
+      _log(`${esc(ev.name)} recovered <b>${ev.amount}</b> HP! (${ev.ability})`);
+      _updateLaneHpBar(isMe ? 'my' : 'opp', ev.lane, ev.hpAfter, ev.maxHp);
+      break;
+    }
+    case 'ability-cure':
+      _log(`${esc(ev.name)}'s status was cured by <b>${ev.ability}</b>!`);
+      break;
+    case 'ability-absorb': {
+      const isMe = ev.side === mySide;
+      if (ev.healAmount) {
+        _log(`${esc(ev.defName)} absorbed ${esc(ev.moveName)} and recovered <b>${ev.healAmount}</b> HP! (${ev.ability})`);
+        _updateLaneHpBar(isMe ? 'my' : 'opp', ev.lane, ev.hpAfter, ev.maxHp);
+      } else {
+        _log(`${esc(ev.defName)}'s <b>${ev.ability}</b> absorbed ${esc(ev.moveName)}!`);
+      }
+      break;
+    }
+    case 'ability-triggered':
+      _log(`${esc(ev.name)} held on with <b>${ev.ability}</b>!`);
+      break;
+    case 'game-over': {
+      const iWin = (ev.winner === 'host') === S.isHost;
+      const t = setTimeout(() => _showGameOver(iWin, ev.survivorSprite, ev.survivorName), 600);
+      _pendingBattleTimeouts.push(t);
       break;
     }
   }
@@ -968,13 +760,11 @@ function _showEvent(ev) {
 
 // ── Game-over screen ──────────────────────────────────────────────────────────
 
-function _showGameOver(won) {
-  const winTeam  = won ? S.myTeam  : S.oppTeam;
-  const survivor = winTeam.find(c => c.currentHp > 0) || winTeam[0];
+function _showGameOver(won, survivorSprite, survivorName) {
   document.getElementById('gameover-title').textContent  = won ? '🏆 YOU WIN!' : '💀 YOU LOSE!';
-  document.getElementById('gameover-winner-sprite').src  = survivor.sprite;
+  document.getElementById('gameover-winner-sprite').src  = survivorSprite ?? '';
   document.getElementById('gameover-result-text').textContent =
-    won ? `${survivor.name} stood victorious!` : `${survivor.name} was too strong…`;
+    won ? `${survivorName ?? '???'} stood victorious!` : `${survivorName ?? '???'} was too strong…`;
   const rematchBtn = document.getElementById('btn-rematch');
   rematchBtn.textContent = '↺ REMATCH';
   rematchBtn.disabled    = false;
@@ -1008,65 +798,4 @@ function _log(html) {
   line.innerHTML = html;
   log.appendChild(line);
   log.scrollTop  = log.scrollHeight;
-}
-
-function _updateHpBar(prefix, current, max) {
-  const pct  = max > 0 ? Math.max(0, current / max) : 0;
-  const fill = document.getElementById(prefix + '-hp-fill');
-  const text = document.getElementById(prefix + '-hp-text');
-  fill.style.width = (pct * 100).toFixed(1) + '%';
-  fill.className   = 'hp-fill ' + (pct > 0.5 ? 'hp-high' : pct > 0.25 ? 'hp-mid' : 'hp-low');
-  text.textContent = `${Math.max(0, current)} / ${max}`;
-}
-
-function _setTypeBadge(id, type) {
-  const el = document.getElementById(id);
-  el.textContent      = type;
-  el.style.background = getTypeColor(type);
-}
-
-function _updateStatusBadge(prefix, status) {
-  const el = document.getElementById(prefix + '-status');
-  if (status) {
-    el.textContent = { burn: '🔥 BRN', poison: '☠ PSN', paralyze: '⚡ PAR', freeze: '❄ FRZ', sleep: '💤 SLP' }[status] ?? status;
-    el.classList.remove('hidden');
-  } else {
-    el.classList.add('hidden');
-  }
-}
-
-function _updateAbilityBadge(prefix, ability) {
-  const el = document.getElementById(prefix + '-ability');
-  if (!el) return;
-  if (ability) {
-    el.textContent = ability;
-    el.classList.remove('hidden');
-  } else {
-    el.classList.add('hidden');
-  }
-}
-
-function _setBattleActionsEnabled(enabled) {
-  document.querySelectorAll('.move-btn').forEach(b => b.disabled = !enabled);
-  const sw = document.getElementById('btn-switch');
-  if (sw) sw.disabled = !enabled;
-}
-
-function _lungeSprite(prefix) {
-  const el = document.getElementById(prefix + '-sprite');
-  const cls = prefix === 'opp' ? 'lunge-flip' : 'lunge';
-  el.classList.add(cls);
-  setTimeout(() => el.classList.remove(cls), 480);
-}
-
-function _impactSprite(prefix) {
-  const el = document.getElementById(prefix + '-sprite');
-  el.classList.add('impact-flash', 'hit-shake');
-  setTimeout(() => el.classList.remove('impact-flash', 'hit-shake'), 420);
-}
-
-function _shakeSprite(prefix) {
-  const el = document.getElementById(prefix + '-sprite');
-  el.classList.add('hit-shake');
-  setTimeout(() => el.classList.remove('hit-shake'), 400);
 }

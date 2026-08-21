@@ -205,22 +205,28 @@ h2 {
 .select-top { display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
 #opp-select-status { font-size: 0.75rem; color: var(--text-dim); font-family: var(--pixel-font); }
 
-/* Team slots row */
+/* Team slots row — 3-column grid (row 1 = fronts, row 2 = backs) */
 .team-slots {
-  display: flex; gap: 10px; width: 100%; margin-bottom: 14px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px; width: 100%; margin-bottom: 14px;
 }
 .team-slot {
-  flex: 1; min-height: 64px; background: var(--surface); border: 2px dashed var(--border);
-  border-radius: 10px; display: flex; align-items: center; justify-content: center;
-  gap: 6px; padding: 8px; position: relative; overflow: hidden;
+  min-height: 72px; background: var(--surface); border: 2px dashed var(--border);
+  border-radius: 10px; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 4px; padding: 6px; position: relative; overflow: hidden;
   transition: border-color 0.2s;
 }
 .team-slot.filled {
-  border-style: solid; border-color: var(--accent); flex-direction: row;
+  border-style: solid; border-color: var(--accent);
 }
-.team-slot.filled img { width: 44px; height: 44px; object-fit: contain; image-rendering: pixelated; flex-shrink: 0; }
-.team-slot.filled span { font-family: var(--pixel-font); font-size: 0.45rem; flex: 1; text-align: center; }
-.team-slot .slot-num { font-family: var(--pixel-font); font-size: 1.2rem; color: var(--border); }
+.team-slot.filled img { width: 40px; height: 40px; object-fit: contain; image-rendering: pixelated; flex-shrink: 0; }
+.team-slot.filled .slot-name { font-family: var(--pixel-font); font-size: 0.38rem; text-align: center; }
+.team-slot .slot-num { font-family: var(--pixel-font); font-size: 1rem; color: var(--border); }
+.slot-label {
+  font-family: var(--pixel-font); font-size: 0.32rem; color: var(--text-dim);
+  text-align: center; letter-spacing: 0.04em;
+}
 .slot-remove {
   background: none; border: none; color: var(--text-dim); cursor: pointer;
   font-size: 0.7rem; padding: 2px 4px; flex-shrink: 0;
@@ -291,7 +297,7 @@ h2 {
 .variant-thumb:hover  { border-color: var(--blue); transform: scale(1.1); }
 .variant-thumb.active { border-color: var(--accent); }
 
-/* ── Battle screen ───────────────────────────────────────────────────────── */
+/* ── Battle screen (auto-battle 3-lane) ──────────────────────────────────── */
 #screen-battle {
   display: none; flex-direction: column;
   min-height: 100vh; padding: 0;
@@ -299,31 +305,67 @@ h2 {
 }
 #screen-battle.active { display: flex; }
 
-/* Battle field */
-.battle-field {
-  flex: 0 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 16px 16px 8px;
+.battle-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 16px; background: rgba(0,0,0,.55); flex-shrink: 0;
+}
+.battle-header .trainer-name { font-family: var(--pixel-font); font-size: 0.58rem; color: var(--accent); }
+.vs-sep { font-family: var(--pixel-font); font-size: 0.52rem; color: var(--text-dim); }
+
+.battle-arena {
+  flex: 1; display: flex; flex-direction: column;
+  gap: 5px; padding: 8px 10px; overflow: hidden;
 }
 
-/* Combatant side */
-.combatant {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 16px;
+.lane-row {
+  flex: 1; display: flex; align-items: center; gap: 6px;
+  background: rgba(0,0,0,.28); border: 1px solid rgba(255,255,255,.07);
+  border-radius: 10px; padding: 6px 8px; min-height: 0;
 }
 
-.combatant-info {
-  background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.1);
-  border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 7px;
+.lane-platform {
+  flex: 1; display: flex; align-items: center; gap: 5px; min-width: 0;
+}
+.lane-platform.my-side  { flex-direction: row; }
+.lane-platform.opp-side { flex-direction: row-reverse; }
+
+.lane-front-wrap {
+  display: flex; flex-direction: column; align-items: center; gap: 3px; flex-shrink: 0;
+}
+.lane-back-wrap {
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0.5; flex-shrink: 0;
 }
 
-.combatant-name-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.combatant-name { font-family: var(--pixel-font); font-size: 0.72rem; font-weight: 700; }
-.trainer-name   { font-size: 0.75rem; color: var(--text-dim); }
+.front-sprite {
+  width: 72px; height: 72px; object-fit: contain; image-rendering: pixelated;
+  filter: drop-shadow(0 3px 8px rgba(0,0,0,.6));
+}
+.opp-side .front-sprite { transform: scaleX(-1); }
+
+.back-sprite {
+  width: 44px; height: 44px; object-fit: contain; image-rendering: pixelated;
+}
+.back-sprite.hidden  { display: none; }
+.front-sprite.hidden { display: none; }
+
+.lane-hpbar {
+  display: flex; flex-direction: column; gap: 2px;
+  min-width: 64px; max-width: 96px; width: 100%;
+}
+.lane-name {
+  font-family: var(--pixel-font); font-size: 0.36rem; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center;
+}
+.lane-hpbar .hp-track { height: 6px; border-radius: 3px; }
+
+.lane-divider {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 2px; flex-shrink: 0; width: 18px;
+}
+.lane-label {
+  font-family: var(--pixel-font); font-size: 0.48rem; color: var(--text-dim);
+}
 
 .hp-row { display: flex; align-items: center; gap: 8px; }
 .hp-label { font-family: var(--pixel-font); font-size: 0.58rem; color: var(--text-dim); flex-shrink: 0; }
