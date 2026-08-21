@@ -447,7 +447,10 @@ function _selectCard(id) {
 
   const preview = document.getElementById('select-preview');
   preview.innerHTML = `
-    <div class="preview-drag-handle"></div>
+    <div class="preview-topbar">
+      <button class="preview-close-btn">← BACK</button>
+      <div class="preview-drag-handle"></div>
+    </div>
     <img src="${currentVariant}" alt="${esc(c.name)}" id="preview-sprite-img">
     <div class="preview-info">
       <strong>${esc(c.name)}</strong>
@@ -534,6 +537,11 @@ function _selectCard(id) {
       const teamIdx = S._mySelectedTeam.findIndex(x => x?.id === id);
       if (teamIdx >= 0) { S._mySelectedTeam[teamIdx].ability = ab; _saveTeam(); }
     });
+  });
+
+  preview.querySelector('.preview-close-btn')?.addEventListener('click', () => {
+    preview.classList.add('hidden');
+    document.getElementById('select-sheet-overlay')?.classList.remove('active');
   });
 
   preview.querySelectorAll('.variant-thumb').forEach(img => {

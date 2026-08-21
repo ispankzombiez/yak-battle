@@ -10,6 +10,19 @@
 const ROOMS_PATH  = 'yak-battle/rooms';
 const ROOM_TTL_MS = 10 * 60 * 1000;
 
+// ICE servers: multiple STUN + free TURN relay for cross-region / symmetric-NAT peers.
+const _ICE = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302'  },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun.cloudflare.com:3478'  },
+    // Open Relay (Metered) – free TURN relay; handles symmetric-NAT cases
+    { urls: 'turn:openrelay.metered.ca:80',                username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443',               username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+  ],
+};
+
 // ── Firebase SDK (lazy singleton, anonymous auth) ────────────────────────────
 let _db = null;
 
@@ -76,7 +89,7 @@ async function netHost(playerName, isPublic) {
       const code   = _randomCode();
       const peerId = codeToPeerId(code);
 
-      _peer = new Peer(peerId);
+      _peer = new Peer(peerId, { config: _ICE });
 
       _peer.on('open', async () => {
         _myRoomCode = code;
@@ -121,7 +134,7 @@ async function netJoin(code) {
   const peerId = codeToPeerId(code.trim());
 
   return new Promise((resolve, reject) => {
-    _peer = new Peer(); // random ID for guest
+    _peer = new Peer({ config: _ICE }); // random ID for guest
     _peer.on('open', () => {
       const conn = _peer.connect(peerId, { reliable: true });
       conn.on('open',  () => { _setupConn(conn); resolve(); });
@@ -129,8 +142,8 @@ async function netJoin(code) {
     });
     _peer.on('error', reject);
 
-    // Timeout after 12 s so users get a clear error
-    setTimeout(() => reject(new Error('Connection timed out. Check the code and try again.')), 12000);
+    // Timeout after 20 s — TURN relay can take longer than direct P2P
+    setTimeout(() => reject(new Error('Connection timed out. Check the code and try again.')), 20000);
   });
 }
 
