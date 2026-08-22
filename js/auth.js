@@ -9,12 +9,30 @@ let _currentPlayer = null; // { uid, username, wins, losses }
 let _isRegistering = false;
 let _pending = null; // { username, email, pass, lc, code, expiresAt, attempts }
 let _onLogin = null;
+let _isGuest = false;
+function authIsGuest() { return _isGuest; }
 
 function authGetCurrentPlayer() { return _currentPlayer; }
 
 async function authLogout() {
   _currentPlayer = null;
-  await _auth.signOut();
+  _isGuest = false;
+  if (_auth.currentUser) {
+    await _auth.signOut().catch(() => {});
+  } else {
+    // Guest — no Firebase session; show auth screen manually
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById('screen-auth').classList.add('active');
+  }
+}
+
+function authPlayAsGuest() {
+  _isGuest = true;
+  _pending = null;
+  _hideVerifyPanel();
+  const name = 'Guest_' + Math.random().toString(36).slice(2, 6).toUpperCase();
+  _currentPlayer = { uid: null, username: name, wins: 0, losses: 0 };
+  if (_onLogin) _onLogin(_currentPlayer);
 }
 
 // ── Boot entry point called by app.js ────────────────────────────────────────
@@ -235,6 +253,10 @@ document.getElementById('auth-btn-back-register').addEventListener('click', () =
   _hideVerifyPanel();
   document.getElementById('auth-error').textContent = '';
   document.getElementById('auth-verify-msg').classList.add('hidden');
+});
+
+document.getElementById('auth-btn-guest').addEventListener('click', () => {
+  authPlayAsGuest();
 });
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

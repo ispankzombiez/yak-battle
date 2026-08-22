@@ -704,37 +704,39 @@ function _validateTeam(team) {
 // Writes own result to Firebase, waits for opponent's matching report,
 // then commits stats via transaction only when both sides agree.
 function _reportBattleResult(won) {
-  if (!S._myUid || !S._battleId || !S._opponentUid) return;
-  const myResult  = won ? 'win' : 'lose';
-  const db        = firebase.database();
-  const resultRef = db.ref('yak-battle/battle-results/' + S._battleId);
+  if (!S._myUid || !S._battleId) return; // guest or no battle
+  const myResult = won ? 'win' : 'lose';
+  const db = firebase.database();
 
-  db.ref('yak-battle/battle-results/' + S._battleId + '/' + S._myUid)
+  // Write our result immediately — don't wait for opponent uid
+  db.ref(`yak-battle/battle-results/${S._battleId}/${S._myUid}`)
     .set(myResult).catch(() => {});
 
-  // Wait up to 30 s for opponent to also submit
-  const timer = setTimeout(() => resultRef.off('value', onSnapshot), 30000);
-
-  function onSnapshot(snap) {
-    const data = snap.val();
-    if (!data || !data[S._myUid] || !data[S._opponentUid]) return;
-
-    clearTimeout(timer);
-    resultRef.off('value', onSnapshot);
-    resultRef.remove().catch(() => {});
-
-    if (data[S._myUid] === data[S._opponentUid]) {
-      // Both claimed the same side — conflict, no stats updated
-      console.warn('Battle result conflict; stats not recorded.');
+  // Retry until opponent uid is known (host receives it via battle-ack, may lag slightly)
+  const _listen = (retries = 0) => {
+    if (!S._opponentUid) {
+      if (retries < 20) setTimeout(() => _listen(retries + 1), 500);
       return;
     }
-    // Results contradict each other (expected: one win, one lose)
-    const key = data[S._myUid] === 'win' ? 'wins' : 'losses';
-    db.ref(`yak-battle/players/${S._myUid}/${key}`)
-      .transaction(n => (n || 0) + 1).catch(() => {});
-  }
-
-  resultRef.on('value', onSnapshot);
+    const resultRef = db.ref('yak-battle/battle-results/' + S._battleId);
+    const timer = setTimeout(() => resultRef.off('value', onSnapshot), 30000);
+    function onSnapshot(snap) {
+      const data = snap.val();
+      if (!data || !data[S._myUid] || !data[S._opponentUid]) return;
+      clearTimeout(timer);
+      resultRef.off('value', onSnapshot);
+      resultRef.remove().catch(() => {});
+      if (data[S._myUid] === data[S._opponentUid]) {
+        console.warn('Battle result conflict; stats not recorded.');
+        return;
+      }
+      const key = data[S._myUid] === 'win' ? 'wins' : 'losses';
+      db.ref(`yak-battle/players/${S._myUid}/${key}`)
+        .transaction(n => (n || 0) + 1).catch(() => {});
+    }
+    resultRef.on('value', onSnapshot);
+  };
+  _listen();
 }
 
 // ── Battle screen (auto-battle) ───────────────────────────────────────────────
@@ -1048,6 +1050,42 @@ function _log(html) {
   log.scrollTop  = log.scrollHeight;
 }
 
+// ── Battle counter ticker ─────────────────────────────────────────────────────
+
+const _tickerData = { battles: 0 };
+let _tickerReady = false;
+
+// Add extra ticker items here: each entry is a string or () => string
+const TICKER_ITEMS = [
+  () => `⚔ ${_tickerData.battles.toLocaleString()} BATTLES FOUGHT`,
+];
+
+function _buildTickerLine() {
+  return TICKER_ITEMS.map(item => typeof item === 'function' ? item() : item).join('   ·   ');
+}
+
+function _updateTicker() {
+  const track = document.getElementById('ticker-track');
+  if (!track) return;
+  const unit = _buildTickerLine() + '   ·   ';
+  const half = unit.repeat(6); // 12 reps total; -50% = 6 reps = seamless loop
+  track.textContent = half + half;
+  track.style.animation = 'none';
+  void track.offsetWidth;
+  track.style.animation = '';
+}
+
+function _setupTicker() {
+  if (_tickerReady) return;
+  _tickerReady = true;
+  _updateTicker();
+  firebase.database().ref('yak-battle/stats/totalBattles')
+    .on('value',
+      snap => { _tickerData.battles = snap.val() || 0; _updateTicker(); },
+      ()   => {} // permission error — keep cached value
+    );
+}
+
 // ── Auth bootstrap ────────────────────────────────────────────────────────────
 // authInit (from auth.js) fires onLogin each time a valid session is established.
 authInit(function (player) {
@@ -1056,11 +1094,6 @@ authInit(function (player) {
   S.playerName  = player.username;
   document.getElementById('player-name-display').textContent = player.username;
 
-  // Real-time battle counter on the lobby
-  firebase.database().ref('yak-battle/stats/totalBattles').on('value', snap => {
-    const el = document.getElementById('battle-counter');
-    if (el) el.textContent = '\u2694 ' + (snap.val() || 0).toLocaleString() + ' BATTLES FOUGHT';
-  });
-
+  _setupTicker();
   showScreen('lobby');
 });

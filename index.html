@@ -80,6 +80,8 @@
         <button id="auth-btn-back-register" class="btn" style="width:100%;margin-top:4px;opacity:0.6;font-size:0.36rem">← BACK</button>
       </div>
 
+      <button id="auth-btn-guest" class="btn" style="width:100%;margin-top:10px;font-size:0.42rem;opacity:0.75">👤 PLAY AS GUEST</button>
+
       <p id="auth-error" class="auth-error"></p>
       <p id="auth-verify-msg" class="auth-verify-msg hidden"></p>
     </div>
@@ -131,7 +133,9 @@
       <button id="btn-browse" class="btn btn-outline">📋 BROWSE PUBLIC BATTLES</button>
       <button id="btn-leaderboard" class="btn btn-outline">🏆 LEADERBOARD</button>
     </div>
-    <div id="battle-counter" class="battle-counter"></div>
+    <div id="battle-counter" class="battle-ticker">
+      <span class="ticker-track" id="ticker-track"></span>
+    </div>
   </div>
 
   <!-- ══════════════════════════════════════════════════════════════════════ -->

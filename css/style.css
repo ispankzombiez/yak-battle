@@ -710,10 +710,27 @@ h2 {
   font-family: var(--pixel-font); font-size: 0.6rem;
   color: var(--text); letter-spacing: 0.06em; flex: 1;
 }
-.battle-counter {
-  font-family: var(--pixel-font); font-size: 0.38rem;
-  color: var(--text-dim); text-align: center;
-  padding: 14px 0 4px; letter-spacing: 0.06em; width: 100%;
+.battle-ticker {
+  border-top: 2px solid #facc15;
+  border-bottom: 2px solid #facc15;
+  overflow: hidden;
+  color: #facc15;
+  font-family: var(--pixel-font);
+  font-size: 0.58rem;
+  padding: 10px 0;
+  background: rgba(0,0,0,0.55);
+  flex-shrink: 0;
+  user-select: none;
+}
+.ticker-track {
+  display: inline-block;
+  white-space: nowrap;
+  will-change: transform;
+  animation: ticker-scroll 22s linear infinite;
+}
+@keyframes ticker-scroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
 }
 
 /* ── Team indicators in battle ───────────────────────────────────────────── */
