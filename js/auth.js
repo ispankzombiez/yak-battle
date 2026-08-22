@@ -8,6 +8,7 @@ const _auth = firebase.auth();
 let _currentPlayer = null; // { uid, username, wins, losses }
 let _isRegistering = false;
 let _pending = null; // { username, email, pass, lc, code, expiresAt, attempts }
+let _onLogin = null;
 
 function authGetCurrentPlayer() { return _currentPlayer; }
 
@@ -20,6 +21,7 @@ async function authLogout() {
 // onLogin fires each time auth state changes to a signed-in, verified user with
 // a valid player record. Shows screen-auth when no valid session exists.
 function authInit(onLogin) {
+  _onLogin = onLogin;
   _auth.onAuthStateChanged(async user => {
     if (_isRegistering) return;
     if (user) {
@@ -28,7 +30,7 @@ function authInit(onLogin) {
           .ref('yak-battle/players/' + user.uid).once('value');
         if (snap.exists()) {
           _currentPlayer = { ...snap.val(), uid: user.uid };
-          onLogin(_currentPlayer);
+          _onLogin(_currentPlayer);
           return;
         }
       } catch { /* fall through to show auth */ }
@@ -194,14 +196,13 @@ document.getElementById('auth-btn-verify').addEventListener('click', async () =>
       username, wins: 0, losses: 0, createdAt: Date.now(),
     });
 
+    _currentPlayer = { username, wins: 0, losses: 0, createdAt: Date.now(), uid };
     _pending = null;
-    _isRegistering = false; // allow onAuthStateChanged(null) to show auth screen
-    await _auth.signOut();
-
+    _isRegistering = false;
     _hideVerifyPanel();
     ['auth-reg-username', 'auth-reg-email', 'auth-reg-password', 'auth-reg-confirm']
       .forEach(id => { document.getElementById(id).value = ''; });
-    _showVerifyMsg('Account created! You can now log in.');
+    _onLogin(_currentPlayer);
   } catch (e) {
     errEl.textContent = _friendlyAuthError(e);
   } finally {
