@@ -6,6 +6,8 @@ firebase.initializeApp(FIREBASE_CONFIG);
 
 const _auth = firebase.auth();
 let _currentPlayer = null; // { uid, username, wins, losses }
+let _isRegistering = false;
+let _pending = null; // { username, email, pass, lc, code, expiresAt, attempts }
 
 function authGetCurrentPlayer() { return _currentPlayer; }
 
@@ -19,12 +21,8 @@ async function authLogout() {
 // a valid player record. Shows screen-auth when no valid session exists.
 function authInit(onLogin) {
   _auth.onAuthStateChanged(async user => {
+    if (_isRegistering) return;
     if (user) {
-      // Unverified accounts are not allowed in
-      if (!user.emailVerified) {
-        await _auth.signOut().catch(() => {});
-        return; // onAuthStateChanged re-fires with null
-      }
       try {
         const snap = await firebase.database()
           .ref('yak-battle/players/' + user.uid).once('value');
@@ -44,6 +42,38 @@ function authInit(onLogin) {
   });
 }
 
+// ── OTP verification helpers ─────────────────────────────────────────────────
+
+function _generateOtp() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+async function _sendOtp() {
+  _pending.code = _generateOtp();
+  _pending.expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+  _pending.attempts = 0;
+  await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+    to_name:  _pending.username,
+    to_email: _pending.email,
+    otp_code: _pending.code,
+  }, EMAILJS_PUBLIC_KEY);
+}
+
+function _showVerifyPanel() {
+  document.getElementById('auth-form-register').classList.add('hidden');
+  document.getElementById('auth-form-verify').classList.remove('hidden');
+  document.getElementById('auth-verify-email-display').textContent = _pending.email;
+  document.getElementById('auth-verify-code').value = '';
+  document.getElementById('auth-error').textContent = '';
+  document.getElementById('auth-verify-msg').classList.add('hidden');
+}
+
+function _hideVerifyPanel() {
+  document.getElementById('auth-form-verify').classList.add('hidden');
+  document.getElementById('auth-form-register').classList.remove('hidden');
+  _pending = null;
+}
+
 // ── Auth screen UI wiring ─────────────────────────────────────────────────────
 
 document.getElementById('auth-tab-login').addEventListener('click', () => {
@@ -51,17 +81,23 @@ document.getElementById('auth-tab-login').addEventListener('click', () => {
   document.getElementById('auth-tab-register').classList.remove('active');
   document.getElementById('auth-form-login').classList.remove('hidden');
   document.getElementById('auth-form-register').classList.add('hidden');
+  document.getElementById('auth-form-verify').classList.add('hidden');
   document.getElementById('auth-error').textContent = '';
   document.getElementById('auth-verify-msg').classList.add('hidden');
+  _pending = null;
 });
 
 document.getElementById('auth-tab-register').addEventListener('click', () => {
   document.getElementById('auth-tab-register').classList.add('active');
   document.getElementById('auth-tab-login').classList.remove('active');
-  document.getElementById('auth-form-register').classList.remove('hidden');
   document.getElementById('auth-form-login').classList.add('hidden');
   document.getElementById('auth-error').textContent = '';
   document.getElementById('auth-verify-msg').classList.add('hidden');
+  if (_pending) {
+    _showVerifyPanel();
+  } else {
+    document.getElementById('auth-form-register').classList.remove('hidden');
+  }
 });
 
 document.getElementById('auth-btn-login').addEventListener('click', async () => {
@@ -75,16 +111,7 @@ document.getElementById('auth-btn-login').addEventListener('click', async () => 
   btn.disabled = true;
   try {
     await _auth.signInWithEmailAndPassword(email, pass);
-    const user = _auth.currentUser;
-    if (user && !user.emailVerified) {
-      // Resend verification while briefly signed in, then boot them out
-      try { await user.sendEmailVerification(); } catch { /* rate-limit is ok */ }
-      await _auth.signOut();
-      _showVerifyMsg(`A new verification link has been sent to <b>${email}</b>. Check your inbox and click the link before logging in.`);
-      btn.disabled = false;
-      return;
-    }
-    // Verified — onAuthStateChanged takes it from here
+    // onAuthStateChanged takes it from here
   } catch (e) {
     errEl.textContent = _friendlyAuthError(e);
     btn.disabled = false;
@@ -101,62 +128,115 @@ document.getElementById('auth-btn-register').addEventListener('click', async () 
   document.getElementById('auth-verify-msg').classList.add('hidden');
 
   if (!username || !email || !pass || !confirm) { errEl.textContent = 'All fields are required.'; return; }
-  if (username.length < 3 || username.length > 16) {
-    errEl.textContent = 'Username must be 3–16 characters.'; return;
-  }
-  if (!/^[A-Za-z0-9_]+$/.test(username)) {
-    errEl.textContent = 'Username: letters, numbers, underscores only.'; return;
-  }
+  if (username.length < 3 || username.length > 16) { errEl.textContent = 'Username must be 3–16 characters.'; return; }
+  if (!/^[A-Za-z0-9_]+$/.test(username)) { errEl.textContent = 'Username: letters, numbers, underscores only.'; return; }
   if (pass.length < 6) { errEl.textContent = 'Password must be at least 6 characters.'; return; }
   if (pass !== confirm) { errEl.textContent = 'Passwords do not match.'; return; }
 
   const btn = document.getElementById('auth-btn-register');
   btn.disabled = true;
-  const lc = username.toLowerCase();
+  _pending = { username, email, pass, lc: username.toLowerCase() };
 
   try {
-    // Create auth account first so all subsequent DB writes are authenticated
+    await _sendOtp();
+    _showVerifyPanel();
+  } catch (e) {
+    _pending = null;
+    errEl.textContent = 'Could not send verification email. Check your connection and try again.';
+  }
+  btn.disabled = false;
+});
+
+// ── Verify code handler ───────────────────────────────────────────────────────
+
+document.getElementById('auth-btn-verify').addEventListener('click', async () => {
+  const code  = document.getElementById('auth-verify-code').value.trim();
+  const errEl = document.getElementById('auth-error');
+  errEl.textContent = '';
+  document.getElementById('auth-verify-msg').classList.add('hidden');
+
+  if (!_pending) { errEl.textContent = 'Session expired. Please register again.'; return; }
+  if (Date.now() > _pending.expiresAt) { errEl.textContent = 'Code expired. Click Resend.'; return; }
+  if (_pending.attempts >= 3) { errEl.textContent = 'Too many attempts. Click Resend.'; return; }
+  if (code !== _pending.code) {
+    _pending.attempts++;
+    const left = 3 - _pending.attempts;
+    errEl.textContent = left > 0 ? `Incorrect code. ${left} attempt(s) remaining.` : 'Too many attempts. Click Resend.';
+    return;
+  }
+
+  const btn   = document.getElementById('auth-btn-verify');
+  const resnd = document.getElementById('auth-btn-resend');
+  btn.disabled = resnd.disabled = true;
+  const { username, email, pass, lc } = _pending;
+
+  _isRegistering = true;
+  try {
     const userCred = await _auth.createUserWithEmailAndPassword(email, pass);
     const uid = userCred.user.uid;
 
-    // Atomically claim the username — transaction aborts if already taken
     const usernameRef = firebase.database().ref('yak-battle/usernames/' + lc);
     let claimed = false;
     await usernameRef.transaction(current => {
-      if (current !== null) return; // abort
+      if (current !== null) return;
       claimed = true;
       return uid;
     });
 
     if (!claimed) {
-      await userCred.user.delete(); // release auth account — username was taken
-      errEl.textContent = 'Username already taken.';
-      btn.disabled = false;
-      return;
+      await userCred.user.delete();
+      _hideVerifyPanel();
+      errEl.textContent = 'That username was just taken. Please register again with a different one.';
+      return; // finally resets flags
     }
 
-    // Write player record (username already set to uid by transaction above)
     await firebase.database().ref('yak-battle/players/' + uid).set({
-      username,
-      wins:      0,
-      losses:    0,
-      createdAt: Date.now(),
+      username, wins: 0, losses: 0, createdAt: Date.now(),
     });
 
-    // Send verification email then immediately sign out — must verify before playing
-    await userCred.user.sendEmailVerification();
+    _pending = null;
+    _isRegistering = false; // allow onAuthStateChanged(null) to show auth screen
     await _auth.signOut();
 
+    _hideVerifyPanel();
     ['auth-reg-username', 'auth-reg-email', 'auth-reg-password', 'auth-reg-confirm']
       .forEach(id => { document.getElementById(id).value = ''; });
-
-    _showVerifyMsg(`Account created! A verification email has been sent to <b>${email}</b>.<br>Click the link in your inbox, then come back and log in.`);
-    btn.disabled = false;
+    _showVerifyMsg('Account created! You can now log in.');
   } catch (e) {
     errEl.textContent = _friendlyAuthError(e);
-    btn.disabled = false;
+  } finally {
+    _isRegistering = false;
+    btn.disabled = resnd.disabled = false;
   }
 });
+
+// ── Resend code handler ───────────────────────────────────────────────────────
+
+document.getElementById('auth-btn-resend').addEventListener('click', async () => {
+  const errEl = document.getElementById('auth-error');
+  if (!_pending) return;
+  const btn = document.getElementById('auth-btn-resend');
+  btn.disabled = true;
+  try {
+    await _sendOtp();
+    document.getElementById('auth-verify-code').value = '';
+    errEl.textContent = '';
+    _showVerifyMsg('A new code has been sent.');
+  } catch {
+    errEl.textContent = 'Failed to resend. Check your connection.';
+  }
+  btn.disabled = false;
+});
+
+// ── Back to register form ─────────────────────────────────────────────────────
+
+document.getElementById('auth-btn-back-register').addEventListener('click', () => {
+  _hideVerifyPanel();
+  document.getElementById('auth-error').textContent = '';
+  document.getElementById('auth-verify-msg').classList.add('hidden');
+});
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function _showVerifyMsg(html) {
   const el = document.getElementById('auth-verify-msg');

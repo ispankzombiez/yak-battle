@@ -66,6 +66,20 @@
         <button id="auth-btn-register" class="btn btn-primary" style="width:100%;margin-top:12px">CREATE ACCOUNT</button>
       </div>
 
+      <div id="auth-form-verify" class="hidden">
+        <p style="font-family:var(--pixel-font);font-size:0.38rem;text-align:center;line-height:2.4;color:#a0a0b0;margin:0 0 12px">
+          Code sent to<br><b id="auth-verify-email-display" style="color:#facc15;word-break:break-all"></b>
+        </p>
+        <label class="auth-field">
+          <span>VERIFICATION CODE</span>
+          <input id="auth-verify-code" type="text" class="auth-input" placeholder="6-digit code"
+                 maxlength="6" autocomplete="one-time-code" inputmode="numeric" pattern="[0-9]*">
+        </label>
+        <button id="auth-btn-verify" class="btn btn-primary" style="width:100%;margin-top:12px">VERIFY</button>
+        <button id="auth-btn-resend" class="btn" style="width:100%;margin-top:8px">RESEND CODE</button>
+        <button id="auth-btn-back-register" class="btn" style="width:100%;margin-top:4px;opacity:0.6;font-size:0.36rem">← BACK</button>
+      </div>
+
       <p id="auth-error" class="auth-error"></p>
       <p id="auth-verify-msg" class="auth-verify-msg hidden"></p>
     </div>
@@ -310,6 +324,8 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
   <script src="js/firebase-config.js?v=202608211800"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+  <script src="js/emailjs-config.js?v=202608211800"></script>
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script src="js/moves.js?v=202608211800"></script>
   <script src="js/abilities.js?v=202608211800"></script>
