@@ -56,7 +56,7 @@ async function _sendOtp() {
     to_name:  _pending.username,
     to_email: _pending.email,
     passcode: _pending.code,
-  }, EMAILJS_PUBLIC_KEY);
+  }, { publicKey: EMAILJS_PUBLIC_KEY });
 }
 
 function _showVerifyPanel() {
@@ -142,7 +142,7 @@ document.getElementById('auth-btn-register').addEventListener('click', async () 
     _showVerifyPanel();
   } catch (e) {
     _pending = null;
-    errEl.textContent = 'Could not send verification email. Check your connection and try again.';
+    errEl.textContent = 'Could not send verification email: ' + (e.text || e.message || JSON.stringify(e));
   }
   btn.disabled = false;
 });
