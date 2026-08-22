@@ -115,42 +115,33 @@ document.getElementById('auth-btn-register').addEventListener('click', async () 
   const lc = username.toLowerCase();
 
   try {
+    // Create auth account first so all subsequent DB writes are authenticated
+    const userCred = await _auth.createUserWithEmailAndPassword(email, pass);
+    const uid = userCred.user.uid;
+
     // Atomically claim the username — transaction aborts if already taken
     const usernameRef = firebase.database().ref('yak-battle/usernames/' + lc);
     let claimed = false;
     await usernameRef.transaction(current => {
       if (current !== null) return; // abort
       claimed = true;
-      return '__pending__';
+      return uid;
     });
 
     if (!claimed) {
+      await userCred.user.delete(); // release auth account — username was taken
       errEl.textContent = 'Username already taken.';
       btn.disabled = false;
       return;
     }
 
-    // Create Firebase Auth account
-    let userCred;
-    try {
-      userCred = await _auth.createUserWithEmailAndPassword(email, pass);
-    } catch (authErr) {
-      await usernameRef.remove().catch(() => {}); // release claim on failure
-      throw authErr;
-    }
-
-    const uid = userCred.user.uid;
-
-    // Write player record and finalise username → uid mapping
-    await Promise.all([
-      firebase.database().ref('yak-battle/players/' + uid).set({
-        username,
-        wins:      0,
-        losses:    0,
-        createdAt: Date.now(),
-      }),
-      usernameRef.set(uid),
-    ]);
+    // Write player record (username already set to uid by transaction above)
+    await firebase.database().ref('yak-battle/players/' + uid).set({
+      username,
+      wins:      0,
+      losses:    0,
+      createdAt: Date.now(),
+    });
 
     // Send verification email then immediately sign out — must verify before playing
     await userCred.user.sendEmailVerification();
