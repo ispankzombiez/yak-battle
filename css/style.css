@@ -689,10 +689,10 @@ h2 {
 }
 .leaderboard-table {
   width: 100%; border-collapse: collapse;
-  font-family: var(--pixel-font); font-size: 0.38rem;
+  font-family: var(--pixel-font); font-size: 0.6rem;
 }
 .leaderboard-table th, .leaderboard-table td {
-  padding: 9px 6px; text-align: left;
+  padding: 14px 10px; text-align: left;
   border-bottom: 1px solid var(--border);
 }
 .leaderboard-table th { color: var(--text-dim); letter-spacing: 0.07em; }
