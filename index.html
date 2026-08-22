@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
-  <script>const PAGE_VERSION = '202608211800';</script>
+  <script>const PAGE_VERSION = '202608212200';</script>
 </head>
 <body>
 
@@ -155,10 +155,10 @@
   <!-- ══════════════════════════════════════════════════════════════════════ -->
   <div id="screen-waiting" class="screen">
     <div class="waiting-box">
-      <p class="room-code-label">SHARE THIS CODE WITH YOUR OPPONENT</p>
+      <p id="waiting-label" class="room-code-label">SHARE THIS CODE WITH YOUR OPPONENT</p>
       <div id="display-room-code" class="room-code-display">……</div>
       <p id="waiting-visibility" class="waiting-visibility">(Public)</p>
-      <div class="waiting-pulse" style="margin-top:20px">Waiting for opponent…</div>
+      <div id="waiting-status-msg" class="waiting-pulse" style="margin-top:20px">Waiting for opponent…</div>
     </div>
     <button id="btn-cancel-wait" class="btn btn-danger btn-sm" style="margin-top:16px">✕ CANCEL</button>
   </div>
@@ -200,6 +200,7 @@
       <span id="my-trainer-name" class="trainer-name"></span>
       <span class="vs-sep">⚔ VS ⚔</span>
       <span id="opp-trainer-name" class="trainer-name"></span>
+      <span id="spectating-badge" class="spectating-badge hidden">🔴 SPECTATING</span>
     </div>
 
     <!-- 3-lane arena -->
@@ -327,17 +328,17 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
-  <script src="js/firebase-config.js?v=202608211800"></script>
+  <script src="js/firebase-config.js?v=202608212200"></script>
   <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
-  <script src="js/emailjs-config.js?v=202608211800"></script>
+  <script src="js/emailjs-config.js?v=202608212200"></script>
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-  <script src="js/moves.js?v=202608211800"></script>
-  <script src="js/abilities.js?v=202608211800"></script>
-  <script src="js/creatures.js?v=202608211800"></script>
-  <script src="js/network.js?v=202608211800"></script>
-  <script src="js/game.js?v=202608211800"></script>
-  <script src="js/auth.js?v=202608211800"></script>
-  <script src="js/app.js?v=202608211800"></script>
+  <script src="js/moves.js?v=202608212200"></script>
+  <script src="js/abilities.js?v=202608212200"></script>
+  <script src="js/creatures.js?v=202608212200"></script>
+  <script src="js/network.js?v=202608212200"></script>
+  <script src="js/game.js?v=202608212200"></script>
+  <script src="js/auth.js?v=202608212200"></script>
+  <script src="js/app.js?v=202608212200"></script>
   <script>
     (function () {
       if (localStorage.getItem('yak-battle-disclaimer') === 'agreed') return;

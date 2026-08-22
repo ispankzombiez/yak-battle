@@ -202,6 +202,21 @@ h2 {
 .room-host-name { font-weight: 700; flex: 1; }
 .room-code-label { font-family: var(--pixel-font); font-size: 0.6rem; color: var(--text-dim); }
 
+.rooms-section-label {
+  font-family: var(--pixel-font); font-size: 0.55rem;
+  color: var(--text-dim); letter-spacing: 0.08em;
+  padding: 4px 0; margin-top: 4px;
+}
+.rooms-section-live { color: #f87171; }
+
+.room-live { border-color: #f87171; }
+.btn-watch {
+  background: transparent; border: 1.5px solid #f87171;
+  color: #f87171; font-family: var(--pixel-font); font-size: 0.55rem;
+  padding: 5px 10px; border-radius: var(--radius); cursor: pointer; white-space: nowrap;
+}
+.btn-watch:hover { background: rgba(248,113,113,.15); }
+
 .empty-msg { color: var(--text-dim); font-size: 0.85rem; text-align: center; padding: 32px 0; }
 
 /* ── Creature select screen ──────────────────────────────────────────────── */
@@ -337,6 +352,11 @@ h2 {
 }
 .battle-header .trainer-name { font-family: var(--pixel-font); font-size: 0.58rem; color: var(--accent); }
 .vs-sep { font-family: var(--pixel-font); font-size: 0.52rem; color: var(--text-dim); }
+.spectating-badge {
+  font-family: var(--pixel-font); font-size: 0.5rem;
+  color: #f87171; letter-spacing: 0.06em; animation: spectate-blink 1.2s step-start infinite;
+}
+@keyframes spectate-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 
 .battle-arena {
   flex: 1; display: flex; flex-direction: column;

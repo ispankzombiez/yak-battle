@@ -1,4 +1,5 @@
 // ── PeerJS + Firebase Realtime Database networking ─────────────────────────────────
+// v202608212200
 //
 // Security model:
 //   • Anonymous auth required by Firebase rules  (”.read/.write”: ”auth != null”)
@@ -37,11 +38,13 @@ async function _fbSet(path, data)    { await _initFirebase(); await _db.ref(path
 async function _fbUpdate(path, data) { await _initFirebase(); await _db.ref(path).update(data); }
 async function _fbRemove(path)       { await _initFirebase(); await _db.ref(path).remove(); }
 
-let _peer           = null;
-let _conn           = null;
-let _onMessage      = null;
-let _onDisconnect   = null;
-let _myRoomCode     = null; // the 6-char code if we're hosting
+let _peer             = null;
+let _conn             = null;
+let _onMessage        = null;
+let _onDisconnect     = null;
+let _myRoomCode       = null; // the 6-char code if we're hosting
+let _spectatorConns   = [];   // open spectator DataConnections (host side)
+let _onSpectatorConnect = null;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -106,7 +109,21 @@ async function netHost(playerName, isPublic) {
           }
         }
 
-        _peer.on('connection', conn => _setupConn(conn));
+        _peer.on('connection', conn => {
+          // Distinguish guest vs spectator by their first message
+          conn.on('open', () => {
+            conn.once('data', firstMsg => {
+              if (firstMsg?.type === 'spectate-request') {
+                _spectatorConns.push(conn);
+                conn.on('close', () => { _spectatorConns = _spectatorConns.filter(c => c !== conn); });
+                if (_onSpectatorConnect) _onSpectatorConnect(conn);
+              } else {
+                _setupConn(conn);
+                if (_onMessage) _onMessage(firstMsg);
+              }
+            });
+          });
+        });
         resolve({ code });
       });
 
@@ -150,12 +167,25 @@ function netSend(data) {
   if (_conn && _conn.open) _conn.send(data);
 }
 
+/** Register a callback invoked when a spectator connects (host side). */
+function netSetOnSpectatorConnect(fn) {
+  _onSpectatorConnect = fn;
+}
+
+/** Send data to all open spectator connections. */
+function netSendToSpectators(data) {
+  _spectatorConns = _spectatorConns.filter(c => c.open);
+  _spectatorConns.forEach(c => c.send(data));
+}
+
 /** Close connection and destroy peer. Removes public room if we hosted one. */
 async function netDisconnect() {
   if (_myRoomCode) {
     try { await _fbRemove(`${ROOMS_PATH}/${codeToPeerId(_myRoomCode)}`); } catch { /* ok */ }
     _myRoomCode = null;
   }
+  _spectatorConns.forEach(c => { try { c.close(); } catch { /* ok */ } });
+  _spectatorConns = [];
   if (_conn)  { _conn.close();    _conn  = null; }
   if (_peer)  { _peer.destroy();  _peer  = null; }
 }
@@ -168,16 +198,50 @@ async function netCloseRoom() {
   } catch { /* ok */ }
 }
 
-/** Fetch public waiting rooms from Firebase. Returns array of room objects. */
+/** Mark hosted room as in-battle (called when the battle starts). */
+async function netMarkBattleStarted() {
+  if (!_myRoomCode) return;
+  try {
+    await _fbUpdate(`${ROOMS_PATH}/${codeToPeerId(_myRoomCode)}`, { status: 'in-battle' });
+  } catch { /* ok */ }
+}
+
+/** Fetch public rooms from Firebase. Returns waiting + in-battle rooms. */
 async function netGetPublicRooms() {
   try {
     const data = await _fbGet(ROOMS_PATH);
     if (!data) return [];
     const now = Date.now();
     return Object.values(data).filter(
-      r => r.status === 'waiting' && (now - r.createdAt) < ROOM_TTL_MS
+      r => (r.status === 'waiting' || r.status === 'in-battle') && (now - r.createdAt) < ROOM_TTL_MS
     );
   } catch {
     return [];
   }
+}
+
+/**
+ * Connect to an in-progress battle as a spectator.
+ * onBattleStart(msg) fires when the host sends battle-start.
+ * onDisconnect() fires if the host peer closes.
+ */
+async function netSpectate(code, onBattleStart, onDisconnect) {
+  const peerId = codeToPeerId(code.trim());
+  return new Promise((resolve, reject) => {
+    _peer = new Peer({ config: _ICE });
+    _peer.on('open', () => {
+      const conn = _peer.connect(peerId, { reliable: true });
+      conn.on('open', () => {
+        conn.send({ type: 'spectate-request' });
+        conn.on('data', msg => { if (msg?.type === 'battle-start') onBattleStart(msg); });
+        conn.on('close', onDisconnect);
+        conn.on('error', onDisconnect);
+        _conn = conn;
+        resolve();
+      });
+      conn.on('error', reject);
+    });
+    _peer.on('error', reject);
+    setTimeout(() => reject(new Error('Connection timed out. The battle may have ended.')), 20000);
+  });
 }

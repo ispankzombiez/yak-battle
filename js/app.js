@@ -41,6 +41,8 @@ const S = {
   _myUid:             null,  // Firebase Auth uid
   _battleId:          null,  // uuid for current battle (for result confirmation)
   _opponentUid:       null,  // opponent's Firebase uid
+  _isSpectating:      false, // true when watching a battle without participating
+  _lastBattleStartMsg: null, // cached for spectators who join mid-battle
 };
 
 // ── Screen management ─────────────────────────────────────────────────────────
@@ -91,6 +93,11 @@ function _loadSavedTeam() {
 // ── Network handlers ──────────────────────────────────────────────────────────
 
 netSetHandlers({ onMessage: handleMessage, onDisconnect: handleDisconnect });
+
+// When a spectator connects to our hosted battle, send them the cached battle-start payload
+netSetOnSpectatorConnect(conn => {
+  if (S._lastBattleStartMsg) conn.send(S._lastBattleStartMsg);
+});
 
 function handleDisconnect() {
   const screen = document.querySelector('.screen.active')?.id ?? '';
@@ -157,6 +164,8 @@ document.getElementById('btn-exit').addEventListener('click', () => {
   _pendingBattleTimeouts.forEach(clearTimeout);
   _pendingBattleTimeouts = [];
   _soloBuilder = false;
+  S._isSpectating = false;
+  S._lastBattleStartMsg = null;
   netDisconnect();
   showScreen('lobby');
 });
@@ -189,6 +198,8 @@ async function _startHost(isPublic) {
   S.playerName = playerName();
   S.isHost     = true;
   showScreen('waiting');
+  document.getElementById('waiting-label').textContent = 'SHARE THIS CODE WITH YOUR OPPONENT';
+  document.getElementById('waiting-status-msg').textContent = 'Waiting for opponent…';
   document.getElementById('display-room-code').textContent = '……';
   document.getElementById('waiting-visibility').textContent = isPublic ? '(Public)' : '(Private)';
 
@@ -255,6 +266,7 @@ async function _loadLeaderboard() {
 }
 
 document.getElementById('btn-cancel-wait').addEventListener('click', async () => {
+  S._isSpectating = false;
   await netDisconnect();
   showScreen('lobby');
 });
@@ -266,33 +278,87 @@ async function loadPublicRooms() {
   list.innerHTML = '<p class="empty-msg">Loading…</p>';
   const rooms = await netGetPublicRooms();
 
-  if (rooms.length === 0) {
+  const waiting  = rooms.filter(r => r.status === 'waiting');
+  const inBattle = rooms.filter(r => r.status === 'in-battle');
+
+  if (waiting.length === 0 && inBattle.length === 0) {
     list.innerHTML = '<p class="empty-msg">No open battles found. Try refreshing!</p>';
     return;
   }
 
   list.innerHTML = '';
-  rooms.forEach(room => {
-    const row = document.createElement('div');
-    row.className = 'room-row';
-    row.innerHTML = `
-      <span class="room-host-name">${esc(room.hostName)}</span>
-      <span class="room-code-label">Code: <strong>${esc(room.code)}</strong></span>
-      <button class="btn btn-sm btn-accent" data-code="${esc(room.code)}">JOIN</button>
-    `;
-    row.querySelector('button').addEventListener('click', async (e) => {
-      const code = e.target.dataset.code;
-      S.playerName = playerName();
-      S.isHost = false;
-      try {
-        await netJoin(code);
-        netSend({ type: 'hello', name: S.playerName });
-      } catch (err) {
-        alert(err.message || 'Could not connect.');
-      }
+
+  if (waiting.length > 0) {
+    const hdr = document.createElement('p');
+    hdr.className = 'rooms-section-label';
+    hdr.textContent = 'OPEN — JOIN';
+    list.appendChild(hdr);
+    waiting.forEach(room => {
+      const row = document.createElement('div');
+      row.className = 'room-row';
+      row.innerHTML = `
+        <span class="room-host-name">${esc(room.hostName)}</span>
+        <span class="room-code-label">Code: <strong>${esc(room.code)}</strong></span>
+        <button class="btn btn-sm btn-accent" data-code="${esc(room.code)}">JOIN</button>
+      `;
+      row.querySelector('button').addEventListener('click', async (e) => {
+        const code = e.target.dataset.code;
+        S.playerName = playerName();
+        S.isHost = false;
+        try {
+          await netJoin(code);
+          netSend({ type: 'hello', name: S.playerName });
+        } catch (err) {
+          alert(err.message || 'Could not connect.');
+        }
+      });
+      list.appendChild(row);
     });
-    list.appendChild(row);
-  });
+  }
+
+  if (inBattle.length > 0) {
+    const hdr = document.createElement('p');
+    hdr.className = 'rooms-section-label rooms-section-live';
+    hdr.textContent = '🔴 LIVE — WATCH';
+    list.appendChild(hdr);
+    inBattle.forEach(room => {
+      const row = document.createElement('div');
+      row.className = 'room-row room-live';
+      row.innerHTML = `
+        <span class="room-host-name">${esc(room.hostName)}</span>
+        <span class="room-code-label">Battle in progress</span>
+        <button class="btn btn-sm btn-watch" data-code="${esc(room.code)}">👁 WATCH</button>
+      `;
+      row.querySelector('button').addEventListener('click', async (e) => {
+        const code = e.target.dataset.code;
+        S._isSpectating = true;
+        showScreen('waiting');
+        document.getElementById('waiting-label').textContent = 'NOW WATCHING';
+        document.getElementById('display-room-code').textContent = code;
+        document.getElementById('waiting-visibility').textContent = '🔴 Spectating';
+        document.getElementById('waiting-status-msg').textContent = 'Connecting to battle…';
+        try {
+          await netSpectate(
+            code,
+            (msg) => startBattle(msg),
+            () => {
+              if (S._isSpectating) {
+                S._isSpectating = false;
+                showScreen('lobby');
+              }
+            }
+          );
+          document.getElementById('waiting-status-msg').textContent = 'Waiting for battle to start…';
+        } catch (err) {
+          S._isSpectating = false;
+          alert(err.message || 'Could not connect to battle.');
+          showScreen('browse');
+          loadPublicRooms();
+        }
+      });
+      list.appendChild(row);
+    });
+  }
 }
 
 // ── Creature select screen ────────────────────────────────────────────────────
@@ -657,8 +723,13 @@ function _maybeStartBattle() {
     seed,
     battleId,
     hostUid:   S._myUid,
+    hostName:  S.playerName,
+    guestName: S.opponentName,
   };
   netSend(battleMsg);
+  netMarkBattleStarted();
+  S._lastBattleStartMsg = battleMsg;
+  netSendToSpectators(battleMsg);
 
   // Increment global battle counter (host only to avoid double-counting)
   firebase.database().ref('yak-battle/stats/totalBattles')
@@ -776,8 +847,8 @@ function _startCountdown(onDone) {
 }
 
 function startBattle(msg) {
-  // Guest: verify team legality and re-simulate to catch fabricated outcomes
-  if (!S.isHost) {
+  // Guest (non-spectator): verify team legality and re-simulate to catch fabricated outcomes
+  if (!S.isHost && !S._isSpectating) {
     const teamErr = _validateTeam(msg.hostTeam) || _validateTeam(msg.guestTeam);
     if (teamErr) {
       netDisconnect();
@@ -812,10 +883,16 @@ function startBattle(msg) {
 
   showScreen('battle');
   document.getElementById('battle-log').innerHTML = '';
-  document.getElementById('my-trainer-name').textContent  = S.playerName;
-  document.getElementById('opp-trainer-name').textContent = S.opponentName;
+  document.getElementById('my-trainer-name').textContent  = S.isHost ? S.playerName : S.opponentName;
+  document.getElementById('opp-trainer-name').textContent = S.isHost ? S.opponentName : S.playerName;
+  const specBadge = document.getElementById('spectating-badge');
+  if (specBadge) specBadge.classList.toggle('hidden', !S._isSpectating);
+  if (S._isSpectating) {
+    document.getElementById('my-trainer-name').textContent  = msg.hostName || 'Host';
+    document.getElementById('opp-trainer-name').textContent = msg.guestName || 'Guest';
+  }
   _renderAllLanes();
-  _log(`Battle start! ${S.playerName} vs ${S.opponentName}!`);
+  _log(`Battle start! ${document.getElementById('my-trainer-name').textContent} vs ${document.getElementById('opp-trainer-name').textContent}!`);
 
   if (msg.events) _startCountdown(() => _playbackBattle(msg.events));
 }
@@ -1010,11 +1087,19 @@ function _showBattleEvent(ev) {
 // ── Game-over screen ──────────────────────────────────────────────────────────
 
 function _showGameOver(won, survivorSprite, survivorName) {
+  document.getElementById('gameover-winner-sprite').src = survivorSprite ?? '';
+  const rematchBtn = document.getElementById('btn-rematch');
+  if (S._isSpectating) {
+    document.getElementById('gameover-title').textContent = '🏆 BATTLE OVER!';
+    document.getElementById('gameover-result-text').textContent = `${survivorName ?? '???'} won the battle!`;
+    rematchBtn.classList.add('hidden');
+    showScreen('gameover');
+    return;
+  }
+  rematchBtn.classList.remove('hidden');
   document.getElementById('gameover-title').textContent  = won ? '🏆 YOU WIN!' : '💀 YOU LOSE!';
-  document.getElementById('gameover-winner-sprite').src  = survivorSprite ?? '';
   document.getElementById('gameover-result-text').textContent =
     won ? `${survivorName ?? '???'} stood victorious!` : `${survivorName ?? '???'} was too strong…`;
-  const rematchBtn = document.getElementById('btn-rematch');
   rematchBtn.textContent = '↺ REMATCH';
   rematchBtn.disabled    = false;
   showScreen('gameover');
@@ -1028,6 +1113,8 @@ document.getElementById('btn-rematch').addEventListener('click', () => {
 });
 
 document.getElementById('btn-return-lobby').addEventListener('click', async () => {
+  S._isSpectating = false;
+  S._lastBattleStartMsg = null;
   await netDisconnect();
   showScreen('lobby');
 });
