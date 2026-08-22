@@ -721,6 +721,8 @@ h2 {
   background: rgba(0,0,0,0.55);
   flex-shrink: 0;
   user-select: none;
+  margin-top: auto;
+  margin-bottom: 6px;
 }
 .ticker-track {
   display: inline-block;
