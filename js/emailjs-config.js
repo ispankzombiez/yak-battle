@@ -12,6 +12,6 @@
 //  4. Copy the Template ID and your account's Public Key (Account → API Keys)
 //  5. Fill in the three constants below and save
 
-const EMAILJS_SERVICE_ID  = 'YOUR_SERVICE_ID';
-const EMAILJS_TEMPLATE_ID = 'YOUR_TEMPLATE_ID';
-const EMAILJS_PUBLIC_KEY  = 'YOUR_PUBLIC_KEY';
+const EMAILJS_SERVICE_ID  = 'service_27jemc1';
+const EMAILJS_TEMPLATE_ID = 'template_7ez14pd';
+const EMAILJS_PUBLIC_KEY  = 'J0RYtIUtsU65ZY2F3';

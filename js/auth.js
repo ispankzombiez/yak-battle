@@ -55,7 +55,7 @@ async function _sendOtp() {
   await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
     to_name:  _pending.username,
     to_email: _pending.email,
-    otp_code: _pending.code,
+    passcode: _pending.code,
   }, EMAILJS_PUBLIC_KEY);
 }
 
