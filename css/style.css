@@ -353,7 +353,7 @@ h2 {
   flex: 1; display: flex; align-items: center; gap: 5px; min-width: 0;
 }
 .lane-platform.my-side  { flex-direction: row; }
-.lane-platform.opp-side { flex-direction: row-reverse; }
+.lane-platform.opp-side { flex-direction: row; }
 
 .lane-front-wrap {
   display: flex; flex-direction: column; align-items: center; gap: 3px; flex-shrink: 0;
@@ -368,6 +368,7 @@ h2 {
   filter: drop-shadow(0 3px 8px rgba(0,0,0,.6));
 }
 .opp-side .front-sprite { transform: scaleX(-1); }
+.opp-side .back-sprite  { transform: scaleX(-1); }
 
 .back-sprite {
   width: 44px; height: 44px; object-fit: contain; image-rendering: pixelated;
